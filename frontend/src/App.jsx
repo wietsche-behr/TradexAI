@@ -5,10 +5,12 @@ import DashboardPage from './pages/DashboardPage';
 import UserManagementPage from './pages/UserManagementPage';
 import StrategiesPage from './pages/StrategiesPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
   const [page, setPage] = useState('dashboard');
+  const [authPage, setAuthPage] = useState('login');
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
 
@@ -64,7 +66,21 @@ export default function App() {
   };
 
   if (!token) {
-    return <LoginPage onLogin={handleLogin} theme={theme} />;
+    if (authPage === 'register') {
+      return (
+        <RegisterPage
+          onRegistered={() => setAuthPage('login')}
+          goToLogin={() => setAuthPage('login')}
+        />
+      );
+    }
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        theme={theme}
+        goToRegister={() => setAuthPage('register')}
+      />
+    );
   }
 
   return (
