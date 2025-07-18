@@ -25,6 +25,7 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     id: int
+    status: str
     trades: List[Trade] = []
 
     class Config:

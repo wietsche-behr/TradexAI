@@ -39,8 +39,8 @@ class SupabaseDB:
             raise RuntimeError(f"Supabase request failed: {exc.code} {msg}") from None
 
     # User operations
-    def create_user(self, username: str, hashed_password: str):
-        data = {"username": username, "hashed_password": hashed_password}
+    def create_user(self, username: str, hashed_password: str, status: str = "Pending"):
+        data = {"username": username, "hashed_password": hashed_password, "status": status}
         res = self._request("POST", "/users", data=data)
         return res[0] if res else None
 
@@ -52,6 +52,15 @@ class SupabaseDB:
     def get_user(self, user_id: int):
         params = {"id": f"eq.{user_id}"}
         res = self._request("GET", "/users", params=params)
+        return res[0] if res else None
+
+    def get_users(self):
+        return self._request("GET", "/users", params={})
+
+    def update_user_status(self, user_id: int, status: str):
+        params = {"id": f"eq.{user_id}"}
+        data = {"status": status}
+        res = self._request("PATCH", "/users", params=params, data=data)
         return res[0] if res else None
 
     # Trade operations
