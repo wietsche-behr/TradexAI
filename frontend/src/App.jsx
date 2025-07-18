@@ -6,6 +6,7 @@ import UserManagementPage from './pages/UserManagementPage';
 import StrategiesPage from './pages/StrategiesPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import { Toaster } from 'react-hot-toast';
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
@@ -86,6 +87,7 @@ export default function App() {
   return (
     <div className="relative min-h-screen font-sans transition-colors duration-500 bg-gray-100 dark:bg-gray-900">
       <ParticleBackground theme={theme} />
+      <Toaster position="top-right" />
       <div className="relative z-10 min-h-screen w-full h-full">
         <Header
           theme={theme}

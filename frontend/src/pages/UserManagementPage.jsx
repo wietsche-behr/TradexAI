@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, UserX } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import StatusBadge from '../components/StatusBadge';
+import { toast } from 'react-hot-toast';
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
@@ -25,6 +26,9 @@ export default function UserManagementPage() {
       .then((res) => res.json())
       .then((updated) => {
         setUsers(users.map((u) => (u.id === userId ? updated : u)));
+        if (newStatus === 'Active') {
+          toast.success('User approved successfully');
+        }
       })
       .catch(() => {});
   };
