@@ -24,10 +24,18 @@ class SupabaseDB:
         if params:
             query = parse.urlencode(params)
             url += f"?{query}"
+
+        headers = self.headers.copy()
+        if method in {"POST", "PATCH", "PUT", "DELETE"}:
+            # Return the affected row(s) so the calling code receives the full
+            # representation rather than an empty body
+            headers["Prefer"] = "return=representation"
+
         data_bytes = None
         if data is not None:
             data_bytes = json.dumps(data).encode()
-        req = request.Request(url, method=method, headers=self.headers, data=data_bytes)
+
+        req = request.Request(url, method=method, headers=headers, data=data_bytes)
         try:
             with request.urlopen(req) as resp:
                 resp_data = resp.read().decode()
