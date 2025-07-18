@@ -1,6 +1,6 @@
-import { Bell, Settings, User, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Bell, Settings, User, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
 
-export default function Header({ theme, toggleTheme, setPage, page }) {
+export default function Header({ theme, toggleTheme, setPage, page, onLogout, user }) {
   return (
     <header className="flex justify-between items-center p-4 text-gray-800 dark:text-white">
       <div className="text-2xl font-bold tracking-wider">
@@ -54,8 +54,10 @@ export default function Header({ theme, toggleTheme, setPage, page }) {
           </button>
           <div className="flex items-center space-x-2">
             <User size={24} className="p-1 bg-cyan-500 rounded-full text-white" />
-            <span className="hidden sm:inline">Alex Doe</span>
-            <ChevronDown size={16} />
+            <span className="hidden sm:inline">{user?.username || 'User'}</span>
+            <button onClick={onLogout} className="p-1" title="Logout">
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </div>
