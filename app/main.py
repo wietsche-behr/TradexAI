@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from . import schemas, crud, auth, cache, settings, strategies
+from . import schemas, crud, auth, cache, settings, strategies, assets
 
 app = FastAPI(title="Tradex API")
 
@@ -21,6 +21,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(strategies.router)
+app.include_router(assets.router)
 
 
 
