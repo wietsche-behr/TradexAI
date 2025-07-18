@@ -4,10 +4,13 @@ import Header from './components/Header';
 import DashboardPage from './pages/DashboardPage';
 import UserManagementPage from './pages/UserManagementPage';
 import StrategiesPage from './pages/StrategiesPage';
+import LoginPage from './pages/LoginPage';
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
   const [page, setPage] = useState('dashboard');
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -16,6 +19,36 @@ export default function App() {
   }, [theme]);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+
+  useEffect(() => {
+    if (token) {
+      fetch('http://localhost:8000/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error('unauthorized');
+          return res.json();
+        })
+        .then((data) => setUser(data))
+        .catch(() => {
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        });
+    }
+  }, [token]);
+
+  const handleLogin = (tok) => {
+    localStorage.setItem('token', tok);
+    setToken(tok);
+    setPage('dashboard');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+  };
 
   const renderPage = () => {
     switch (page) {
@@ -30,11 +63,22 @@ export default function App() {
     }
   };
 
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} theme={theme} />;
+  }
+
   return (
     <div className="relative min-h-screen font-sans transition-colors duration-500 bg-gray-100 dark:bg-gray-900">
       <ParticleBackground theme={theme} />
       <div className="relative z-10 min-h-screen w-full h-full">
-        <Header theme={theme} toggleTheme={toggleTheme} setPage={setPage} page={page} />
+        <Header
+          theme={theme}
+          toggleTheme={toggleTheme}
+          setPage={setPage}
+          page={page}
+          onLogout={handleLogout}
+          user={user}
+        />
         {renderPage()}
       </div>
     </div>
