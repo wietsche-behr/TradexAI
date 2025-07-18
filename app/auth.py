@@ -55,7 +55,7 @@ def register(user: schemas.UserCreate):
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
     hashed_password = get_password_hash(user.password)
-    new_user = db.create_user(user.username, hashed_password)
+    new_user = db.create_user(user.username, hashed_password, status="Pending")
     return new_user
 
 
@@ -63,8 +63,15 @@ def register(user: schemas.UserCreate):
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Incorrect username or password")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+        )
+    if user.get("status") != "Active":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not approved",
+        )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["username"]}, expires_delta=access_token_expires
@@ -93,3 +100,18 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 @router.get("/users/me", response_model=schemas.User)
 def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/users", response_model=list[schemas.User])
+def list_users(current_user: dict = Depends(get_current_user)):
+    # In a real app, validate admin privileges here
+    return db.get_users()
+
+
+@router.patch("/users/{user_id}/status", response_model=schemas.User)
+def update_user_status(user_id: int, status: str, current_user: dict = Depends(get_current_user)):
+    # In a real app, validate admin privileges here
+    updated = db.update_user_status(user_id, status)
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+    return updated

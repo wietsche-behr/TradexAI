@@ -18,12 +18,13 @@ export default function LoginPage({ onLogin, theme, goToRegister }) {
         body,
       });
       if (!res.ok) {
-        throw new Error('Invalid credentials');
+        const data = await res.json();
+        throw new Error(data.detail || 'Invalid credentials');
       }
       const data = await res.json();
       onLogin(data.access_token);
     } catch (err) {
-      setError('Login failed');
+      setError(err.message || 'Login failed');
     }
   };
 

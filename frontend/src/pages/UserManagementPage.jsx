@@ -1,28 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, UserX } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import StatusBadge from '../components/StatusBadge';
 
-const initialUsers = [
-  { id: 1, name: 'John Doe', email: 'john.doe@example.com', registrationDate: '2023-10-26', status: 'Active' },
-  { id: 2, name: 'Jane Smith', email: 'jane.smith@example.com', registrationDate: '2023-10-25', status: 'Pending' },
-  { id: 3, name: 'Sam Wilson', email: 'sam.wilson@example.com', registrationDate: '2023-10-24', status: 'Disabled' },
-  { id: 4, name: 'Alice Johnson', email: 'alice.j@example.com', registrationDate: '2023-10-22', status: 'Pending' },
-  { id: 5, name: 'Bob Brown', email: 'bob.brown@example.com', registrationDate: '2023-10-21', status: 'Active' },
-  { id: 6, name: 'Chris Green', email: 'chris.g@example.com', registrationDate: '2023-10-27', status: 'Pending' },
-];
-
 export default function UserManagementPage() {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    fetch('http://localhost:8000/users', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then(setUsers)
+      .catch(() => setUsers([]));
+  }, [token]);
 
   const handleStatusChange = (userId, newStatus) => {
-    setUsers(users.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)));
+    fetch(`http://localhost:8000/users/${userId}/status?status=${newStatus}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((updated) => {
+        setUsers(users.map((u) => (u.id === userId ? updated : u)));
+      })
+      .catch(() => {});
   };
 
   const applyFilter = (user) =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    user.username.toLowerCase().includes(searchTerm.toLowerCase());
 
   const pendingUsers = users.filter((u) => u.status === 'Pending').filter(applyFilter);
   const managedUsers = users.filter((u) => u.status !== 'Pending').filter(applyFilter);
@@ -50,8 +58,6 @@ export default function UserManagementPage() {
             <thead className="border-b border-gray-400/20 dark:border-white/20">
               <tr>
                 <th className="p-4">User</th>
-                <th className="p-4">Email</th>
-                <th className="p-4">Registration Date</th>
                 <th className="p-4 text-center">Actions</th>
               </tr>
             </thead>
@@ -59,9 +65,7 @@ export default function UserManagementPage() {
               {pendingUsers.length > 0 ? (
                 pendingUsers.map((user) => (
                   <tr key={user.id} className="border-b border-gray-400/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                    <td className="p-4 font-semibold text-gray-800 dark:text-white">{user.name}</td>
-                    <td className="p-4">{user.email}</td>
-                    <td className="p-4">{user.registrationDate}</td>
+                    <td className="p-4 font-semibold text-gray-800 dark:text-white">{user.username}</td>
                     <td className="p-4">
                       <div className="flex justify-center items-center space-x-2">
                         <button onClick={() => handleStatusChange(user.id, 'Active')} className="p-2 rounded-full text-green-400 hover:bg-green-500/20 transition" title="Approve">
@@ -76,7 +80,7 @@ export default function UserManagementPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="text-center p-6 text-gray-500">No users pending approval.</td>
+                  <td colSpan="2" className="text-center p-6 text-gray-500">No users pending approval.</td>
                 </tr>
               )}
             </tbody>
@@ -91,7 +95,6 @@ export default function UserManagementPage() {
             <thead className="border-b border-gray-400/20 dark:border-white/20">
               <tr>
                 <th className="p-4">User</th>
-                <th className="p-4">Email</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-center">Actions</th>
               </tr>
@@ -99,8 +102,7 @@ export default function UserManagementPage() {
             <tbody>
               {managedUsers.map((user) => (
                 <tr key={user.id} className="border-b border-gray-400/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                  <td className="p-4 font-semibold text-gray-800 dark:text-white">{user.name}</td>
-                  <td className="p-4">{user.email}</td>
+                  <td className="p-4 font-semibold text-gray-800 dark:text-white">{user.username}</td>
                   <td className="p-4"><StatusBadge status={user.status} /></td>
                   <td className="p-4">
                     <div className="flex justify-center items-center space-x-2">
