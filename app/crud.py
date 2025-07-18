@@ -1,39 +1,32 @@
-from sqlalchemy.orm import Session
 from fastapi import HTTPException
-
-from . import models, schemas
-
-
-def create_trade(db: Session, trade: schemas.TradeCreate, user_id: int) -> models.Trade:
-    db_trade = models.Trade(**trade.dict(), owner_id=user_id)
-    db.add(db_trade)
-    db.commit()
-    db.refresh(db_trade)
-    return db_trade
+from . import schemas
+from .supabase_db import db
 
 
-def get_trade(db: Session, trade_id: int) -> models.Trade:
-    trade = db.query(models.Trade).filter(models.Trade.id == trade_id).first()
+def create_trade(trade: schemas.TradeCreate, user_id: int):
+    data = trade.dict()
+    data["owner_id"] = user_id
+    return db.create_trade(data)
+
+
+def get_trade(trade_id: int):
+    trade = db.get_trade(trade_id)
     if not trade:
         raise HTTPException(status_code=404, detail="Trade not found")
     return trade
 
 
-def get_trades(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Trade).offset(skip).limit(limit).all()
+def get_trades(owner_id: int, skip: int = 0, limit: int = 100):
+    return db.get_trades(owner_id, skip=skip, limit=limit)
 
 
-def update_trade(db: Session, trade_id: int, trade: schemas.TradeCreate):
-    db_trade = get_trade(db, trade_id)
-    for key, value in trade.dict().items():
-        setattr(db_trade, key, value)
-    db.commit()
-    db.refresh(db_trade)
-    return db_trade
+def update_trade(trade_id: int, trade: schemas.TradeCreate):
+    existing = get_trade(trade_id)
+    data = trade.dict()
+    return db.update_trade(trade_id, data)
 
 
-def delete_trade(db: Session, trade_id: int):
-    db_trade = get_trade(db, trade_id)
-    db.delete(db_trade)
-    db.commit()
-    return db_trade
+def delete_trade(trade_id: int):
+    existing = get_trade(trade_id)
+    db.delete_trade(trade_id)
+    return existing

@@ -1,6 +1,6 @@
 # Tradex API
 
-This project contains a simple FastAPI backend for a crypto and stock trading bot. It provides JWT-based authentication, CRUD endpoints for trades stored in PostgreSQL using SQLAlchemy, and a Redis cache for market data.
+This project contains a simple FastAPI backend for a crypto and stock trading bot. It provides JWT-based authentication, CRUD endpoints for trades stored in a Supabase database, and a Redis cache for market data.
 
 ## Setup
 
@@ -8,8 +8,14 @@ This project contains a simple FastAPI backend for a crypto and stock trading bo
    ```bash
    pip install -r requirements.txt
    ```
-2. Configure `DATABASE_URL` and `REDIS_URL` environment variables if different from defaults.
-3. Run the application:
+2. Create a project in [Supabase](https://supabase.com) and create `users` and `trades` tables matching the models in `app/schemas.py`.
+3. Grab your project API URL and service role key from the Supabase dashboard and set them as environment variables:
+   ```bash
+   export SUPABASE_URL=https://<project-id>.supabase.co
+   export SUPABASE_KEY=<your-service-role-key>
+   export REDIS_URL=redis://localhost:6379/0  # optional
+   ```
+4. Run the application:
    ```bash
    uvicorn app.main:app --reload
    ```
