@@ -5,8 +5,8 @@ from urllib import request, parse, error
 
 class SupabaseDB:
     def __init__(self):
-        self.url = os.getenv("SUPABASE_URL")
-        self.key = os.getenv("SUPABASE_KEY")
+        self.url = "https://bvobkbervdxeflwittlp.supabase.co"
+        self.key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2b2JrYmVydmR4ZWZsd2l0dGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4MjU0NjEsImV4cCI6MjA2ODQwMTQ2MX0.y6j4Utub7QoJnLl4QbDMFzz2mFpfP7Bjw1uqp-ZaRzk"
         if not self.url or not self.key:
             raise RuntimeError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
         # Ensure base URL ends without trailing slash
