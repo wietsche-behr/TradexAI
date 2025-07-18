@@ -35,6 +35,15 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           >
             Strategies
           </a>
+          <a
+            href="#"
+            onClick={() => setPage('assets')}
+            className={`${
+              page === 'assets' ? 'text-cyan-600 dark:text-cyan-400' : ''
+            } hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors`}
+          >
+            Assets
+          </a>
           <a href="#" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
             Analytics
           </a>

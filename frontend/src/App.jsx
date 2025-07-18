@@ -4,6 +4,7 @@ import Header from './components/Header';
 import DashboardPage from './pages/DashboardPage';
 import UserManagementPage from './pages/UserManagementPage';
 import StrategiesPage from './pages/StrategiesPage';
+import AssetsPage from './pages/AssetsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { Toaster } from 'react-hot-toast';
@@ -63,6 +64,8 @@ export default function App() {
         return <UserManagementPage />;
       case 'strategies':
         return <StrategiesPage />;
+      case 'assets':
+        return <AssetsPage />;
       default:
         return <DashboardPage theme={theme} />;
     }
