@@ -1,5 +1,8 @@
 fastapi
 uvicorn
 python-jose
-passlib[bcrypt]
+# Pin passlib and bcrypt versions to avoid incompatibility between
+# passlib's bcrypt backend and newer versions of the bcrypt package
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.0
 redis
