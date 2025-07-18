@@ -1,10 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, Body
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from . import schemas, crud, auth, cache, settings
-from .supabase_db import db
-from binance.client import Client
+from . import schemas, crud, auth, cache, settings, strategies
 
 app = FastAPI(title="Tradex API")
 
@@ -22,23 +20,9 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(settings.router)
+app.include_router(strategies.router)
 
 
-@app.post("/strategy/test")
-def run_test_strategy(
-    symbol: str = Body(..., embed=True),
-    current_user: dict = Depends(auth.get_current_user),
-):
-    user_settings = db.get_user_settings(current_user["id"])
-    if not user_settings:
-        raise HTTPException(status_code=400, detail="Binance API keys not configured")
-    client = Client(user_settings["binance_api_key"], user_settings["binance_api_secret"])
-    try:
-        buy = client.create_order(symbol=symbol.upper(), side="BUY", type="MARKET", quantity=1)
-        sell = client.create_order(symbol=symbol.upper(), side="SELL", type="MARKET", quantity=1)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"buy": buy, "sell": sell}
 
 
 @app.post("/trades/", response_model=schemas.Trade)
