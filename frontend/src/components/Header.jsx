@@ -1,6 +1,6 @@
 import { Bell, Settings, User, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
 
-export default function Header({ theme, toggleTheme, setPage, page, onLogout, user }) {
+export default function Header({ theme, toggleTheme, setPage, page, onLogout, user, onOpenSettings }) {
   return (
     <header className="flex justify-between items-center p-4 text-gray-800 dark:text-white">
       <div className="text-2xl font-bold tracking-wider">
@@ -49,7 +49,10 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           <button className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/20 transition-colors">
             <Bell size={20} />
           </button>
-          <button className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/20 transition-colors">
+          <button
+            onClick={onOpenSettings}
+            className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+          >
             <Settings size={20} />
           </button>
           <div className="flex items-center space-x-2">

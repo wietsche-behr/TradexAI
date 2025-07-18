@@ -30,3 +30,20 @@ class User(UserBase):
 
     class Config:
         orm_mode = True
+
+
+class UserSettingsBase(BaseModel):
+    binance_api_key: str
+    binance_api_secret: str
+
+
+class UserSettingsCreate(UserSettingsBase):
+    pass
+
+
+class UserSettings(UserSettingsBase):
+    id: int
+    user_id: int
+
+    class Config:
+        orm_mode = True

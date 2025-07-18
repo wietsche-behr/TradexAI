@@ -7,6 +7,7 @@ import StrategiesPage from './pages/StrategiesPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { Toaster } from 'react-hot-toast';
+import SettingsModal from './components/SettingsModal';
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
@@ -14,6 +15,7 @@ export default function App() {
   const [authPage, setAuthPage] = useState('login');
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -96,8 +98,14 @@ export default function App() {
           page={page}
           onLogout={handleLogout}
           user={user}
+          onOpenSettings={() => setShowSettings(true)}
         />
         {renderPage()}
+        <SettingsModal
+          visible={showSettings}
+          onClose={() => setShowSettings(false)}
+          token={token}
+        />
       </div>
     </div>
   );

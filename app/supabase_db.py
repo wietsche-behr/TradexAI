@@ -1,6 +1,7 @@
 import os
 import json
 from urllib import request, parse, error
+from cryptography.fernet import Fernet
 
 
 class SupabaseDB:
@@ -18,6 +19,16 @@ class SupabaseDB:
             "Authorization": f"Bearer {self.key}",
             "Content-Type": "application/json",
         }
+        enc_key = os.getenv("ENCRYPTION_KEY")
+        if not enc_key:
+            raise RuntimeError("ENCRYPTION_KEY environment variable must be set")
+        self.cipher = Fernet(enc_key)
+
+    def encrypt(self, value: str) -> str:
+        return self.cipher.encrypt(value.encode()).decode()
+
+    def decrypt(self, value: str) -> str:
+        return self.cipher.decrypt(value.encode()).decode()
 
     def _request(self, method: str, path: str, params: dict | None = None, data: dict | None = None):
         url = self.rest_url + path
@@ -98,6 +109,31 @@ class SupabaseDB:
         params = {"id": f"eq.{trade_id}"}
         res = self._request("DELETE", "/trades", params=params)
         return res
+
+    # User settings operations
+    def get_user_settings(self, user_id: int):
+        params = {"user_id": f"eq.{user_id}"}
+        res = self._request("GET", "/user_settings", params=params)
+        if res:
+            item = res[0]
+            item["binance_api_key"] = self.decrypt(item["binance_api_key"])
+            item["binance_api_secret"] = self.decrypt(item["binance_api_secret"])
+            return item
+        return None
+
+    def upsert_user_settings(self, user_id: int, api_key: str, api_secret: str):
+        encrypted = {
+            "binance_api_key": self.encrypt(api_key),
+            "binance_api_secret": self.encrypt(api_secret),
+        }
+        existing = self.get_user_settings(user_id)
+        if existing:
+            params = {"user_id": f"eq.{user_id}"}
+            res = self._request("PATCH", "/user_settings", params=params, data=encrypted)
+            return res[0] if res else None
+        data = {"user_id": user_id, **encrypted}
+        res = self._request("POST", "/user_settings", data=data)
+        return res[0] if res else None
 
 
 db = SupabaseDB()
