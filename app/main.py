@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from . import schemas, crud, auth, cache
+from . import schemas, crud, auth, cache, settings
 
 app = FastAPI(title="Tradex API")
 
@@ -19,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(settings.router)
 
 
 @app.post("/trades/", response_model=schemas.Trade)
