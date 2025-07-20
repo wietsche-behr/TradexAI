@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AreaChart,
   Area,
@@ -12,22 +12,6 @@ import {
 import { Activity, DollarSign, Shield, Clock, Zap } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 
-const chartData = [
-  { name: '00:00', profit: 4000, loss: 2400 },
-  { name: '03:00', profit: 3000, loss: 1398 },
-  { name: '06:00', profit: 2000, loss: 9800 },
-  { name: '09:00', profit: 2780, loss: 3908 },
-  { name: '12:00', profit: 1890, loss: 4800 },
-  { name: '15:00', profit: 2390, loss: 3800 },
-  { name: '18:00', profit: 3490, loss: 4300 },
-  { name: '21:00', profit: 4150, loss: 3200 },
-];
-
-const tradeHistory = [
-  { id: 'T12345', pair: 'BTC/USDT', type: 'BUY', amount: 0.5, price: 68000.5, status: 'Closed', profit: 250.75 },
-  { id: 'T12346', pair: 'ETH/USDT', type: 'SELL', amount: 10, price: 3500.2, status: 'Open', profit: -50.1 },
-  { id: 'T12347', pair: 'SOL/USDT', type: 'BUY', amount: 100, price: 165.8, status: 'Closed', profit: 890.45 },
-];
 
 const StatCard = ({ icon, title, value, change, changeType }) => {
   const changeColor = changeType === 'increase' ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400';
@@ -45,7 +29,7 @@ const StatCard = ({ icon, title, value, change, changeType }) => {
   );
 };
 
-const MainChart = ({ theme }) => {
+const MainChart = ({ theme, data }) => {
   const axisColor = theme === 'dark' ? '#9ca3af' : '#4b5563';
   const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
   return (
@@ -63,7 +47,7 @@ const MainChart = ({ theme }) => {
       </div>
       <div className="flex-grow">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+          <AreaChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
             <defs>
               <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8} />
@@ -115,7 +99,7 @@ const BotControl = () => {
   );
 };
 
-const TradeHistoryTable = () => (
+const TradeHistoryTable = ({ tradeHistory }) => (
   <GlassCard className="col-span-12">
     <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Trade History</h3>
     <div className="overflow-x-auto">
@@ -146,18 +130,58 @@ const TradeHistoryTable = () => (
 );
 
 export default function DashboardPage({ theme }) {
+  const [chartData, setChartData] = useState([]);
+  const [tradeHistory, setTradeHistory] = useState([]);
+  const [stats, setStats] = useState({
+    total_profit: 0,
+    win_rate: 0,
+    active_trades: 0,
+    avg_trade_duration: 0,
+  });
+
+  const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    fetch('http://localhost:8000/dashboard', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setChartData(data.chart_data || []);
+        setTradeHistory(data.trade_history || []);
+        setStats(data.stats || {});
+      })
+      .catch(() => {});
+  }, [token]);
+
   return (
     <main className="p-4 sm:p-6 lg:p-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <StatCard icon={<DollarSign className="text-cyan-500 dark:text-cyan-400" />} title="Total Profit" value="$12,845.67" change="+5.2% today" changeType="increase" />
-        <StatCard icon={<Activity className="text-cyan-500 dark:text-cyan-400" />} title="Win Rate" value="78.4%" change="-1.1% this week" changeType="decrease" />
-        <StatCard icon={<Shield className="text-cyan-500 dark:text-cyan-400" />} title="Active Trades" value="3" />
-        <StatCard icon={<Clock className="text-cyan-500 dark:text-cyan-400" />} title="Avg. Trade Duration" value="4h 27m" />
+        <StatCard
+          icon={<DollarSign className="text-cyan-500 dark:text-cyan-400" />}
+          title="Total Profit"
+          value={`$${stats.total_profit.toFixed(2)}`}
+        />
+        <StatCard
+          icon={<Activity className="text-cyan-500 dark:text-cyan-400" />}
+          title="Win Rate"
+          value={`${stats.win_rate.toFixed(1)}%`}
+        />
+        <StatCard
+          icon={<Shield className="text-cyan-500 dark:text-cyan-400" />}
+          title="Active Trades"
+          value={stats.active_trades}
+        />
+        <StatCard
+          icon={<Clock className="text-cyan-500 dark:text-cyan-400" />}
+          title="Avg. Trade Duration"
+          value={`${stats.avg_trade_duration}m`}
+        />
       </div>
       <div className="grid grid-cols-12 gap-6">
-        <MainChart theme={theme} />
+        <MainChart theme={theme} data={chartData} />
         <BotControl />
-        <TradeHistoryTable />
+        <TradeHistoryTable tradeHistory={tradeHistory} />
       </div>
     </main>
   );
