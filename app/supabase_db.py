@@ -135,5 +135,34 @@ class SupabaseDB:
         res = self._request("POST", "/user_settings", data=data)
         return res[0] if res else None
 
+    # Bot config operations
+    def get_bot_config(self, user_id: int):
+        params = {"user_id": f"eq.{user_id}"}
+        res = self._request("GET", "/bot_configs", params=params)
+        return res[0] if res else None
+
+    def upsert_bot_config(
+        self,
+        user_id: int,
+        strategy: str,
+        risk_level: str,
+        market: str,
+        is_active: bool,
+    ):
+        data = {
+            "strategy": strategy,
+            "risk_level": risk_level,
+            "market": market,
+            "is_active": is_active,
+        }
+        existing = self.get_bot_config(user_id)
+        if existing:
+            params = {"user_id": f"eq.{user_id}"}
+            res = self._request("PATCH", "/bot_configs", params=params, data=data)
+            return res[0] if res else None
+        data["user_id"] = user_id
+        res = self._request("POST", "/bot_configs", data=data)
+        return res[0] if res else None
+
 
 db = SupabaseDB()

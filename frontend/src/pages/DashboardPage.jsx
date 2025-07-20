@@ -72,8 +72,34 @@ const MainChart = ({ theme, data }) => {
   );
 };
 
-const BotControl = () => {
-  const [isBotActive, setIsBotActive] = useState(true);
+const BotControl = ({ token }) => {
+  const [config, setConfig] = useState(null);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/bot', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then(setConfig)
+      .catch(() => setConfig(null));
+  }, [token]);
+
+  const toggleBot = () => {
+    if (!config) return;
+    fetch('http://localhost:8000/bot', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...config, is_active: !config.is_active }),
+    })
+      .then((res) => res.json())
+      .then(setConfig)
+      .catch(() => {});
+  };
+
+  const isBotActive = config ? config.is_active : false;
   return (
     <GlassCard className="col-span-12 lg:col-span-4 h-full flex flex-col justify-between">
       <div>
@@ -85,13 +111,17 @@ const BotControl = () => {
             <span>{isBotActive ? 'Active' : 'Stopped'}</span>
           </div>
         </div>
-        <div className="space-y-3 text-gray-700 dark:text-gray-200">
-          <p><strong>Strategy:</strong> Momentum Scalper v2</p>
-          <p><strong>Risk Level:</strong> Medium</p>
-          <p><strong>Market:</strong> Crypto Futures</p>
-        </div>
+        {config ? (
+          <div className="space-y-3 text-gray-700 dark:text-gray-200">
+            <p><strong>Strategy:</strong> {config.strategy}</p>
+            <p><strong>Risk Level:</strong> {config.risk_level}</p>
+            <p><strong>Market:</strong> {config.market}</p>
+          </div>
+        ) : (
+          <p className="text-gray-500">No configuration</p>
+        )}
       </div>
-      <button onClick={() => setIsBotActive(!isBotActive)} className={`w-full py-3 mt-6 rounded-lg text-white font-bold text-lg transition-all duration-300 flex items-center justify-center space-x-2 ${isBotActive ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30' : 'bg-green-500 hover:bg-green-600 shadow-green-500/30'} shadow-lg`}>
+      <button onClick={toggleBot} className={`w-full py-3 mt-6 rounded-lg text-white font-bold text-lg transition-all duration-300 flex items-center justify-center space-x-2 ${isBotActive ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30' : 'bg-green-500 hover:bg-green-600 shadow-green-500/30'} shadow-lg`}>
         <Zap size={20}/>
         <span>{isBotActive ? 'STOP BOT' : 'START BOT'}</span>
       </button>
@@ -179,7 +209,7 @@ export default function DashboardPage({ theme, token }) {
       </div>
       <div className="grid grid-cols-12 gap-6">
         <MainChart theme={theme} data={chartData} />
-        <BotControl />
+        <BotControl token={token} />
         <TradeHistoryTable tradeHistory={tradeHistory} />
       </div>
     </main>
