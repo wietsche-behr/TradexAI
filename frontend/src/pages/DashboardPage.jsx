@@ -129,7 +129,7 @@ const TradeHistoryTable = ({ tradeHistory }) => (
   </GlassCard>
 );
 
-export default function DashboardPage({ theme }) {
+export default function DashboardPage({ theme, token }) {
   const [chartData, setChartData] = useState([]);
   const [tradeHistory, setTradeHistory] = useState([]);
   const [stats, setStats] = useState({
@@ -139,7 +139,6 @@ export default function DashboardPage({ theme }) {
     avg_trade_duration: 0,
   });
 
-  const token = localStorage.getItem('token');
 
   useEffect(() => {
     fetch('http://localhost:8000/dashboard', {

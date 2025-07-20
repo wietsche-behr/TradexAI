@@ -59,7 +59,7 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case 'dashboard':
-        return <DashboardPage theme={theme} />;
+        return <DashboardPage theme={theme} token={token} />;
       case 'users':
         return <UserManagementPage />;
       case 'strategies':
@@ -67,7 +67,7 @@ export default function App() {
       case 'assets':
         return <AssetsPage />;
       default:
-        return <DashboardPage theme={theme} />;
+        return <DashboardPage theme={theme} token={token} />;
     }
   };
 
