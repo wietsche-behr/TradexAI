@@ -47,3 +47,22 @@ class UserSettings(UserSettingsBase):
 
     class Config:
         orm_mode = True
+
+
+class BotConfigBase(BaseModel):
+    strategy: str
+    risk_level: str
+    market: str
+    is_active: bool
+
+
+class BotConfigCreate(BotConfigBase):
+    pass
+
+
+class BotConfig(BotConfigBase):
+    id: int
+    user_id: int
+
+    class Config:
+        orm_mode = True
