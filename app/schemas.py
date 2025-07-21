@@ -51,6 +51,7 @@ class BotConfigBase(BaseModel):
     risk_level: str
     market: str
     is_active: bool
+    amount: float | None = None
 
 
 class BotConfigCreate(BotConfigBase):

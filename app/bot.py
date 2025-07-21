@@ -25,6 +25,7 @@ def update_bot_config(
         config.risk_level,
         config.market,
         config.is_active,
+        config.amount,
     )
     return updated
 

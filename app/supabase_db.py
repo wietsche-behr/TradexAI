@@ -148,12 +148,14 @@ class SupabaseDB:
         risk_level: str,
         market: str,
         is_active: bool,
+        amount: float | None,
     ):
         data = {
             "strategy": strategy,
             "risk_level": risk_level,
             "market": market,
             "is_active": is_active,
+            "amount": amount,
         }
         existing = self.get_bot_config(user_id)
         if existing:

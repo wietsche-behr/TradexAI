@@ -4,6 +4,7 @@ import Header from './components/Header';
 import DashboardPage from './pages/DashboardPage';
 import UserManagementPage from './pages/UserManagementPage';
 import StrategiesPage from './pages/StrategiesPage';
+import StrategyLogsPage from './pages/StrategyLogsPage';
 import AssetsPage from './pages/AssetsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -17,6 +18,7 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [logStrategy, setLogStrategy] = useState(null);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -63,7 +65,15 @@ export default function App() {
       case 'users':
         return <UserManagementPage />;
       case 'strategies':
-        return <StrategiesPage />;
+        return <StrategiesPage setPage={setPage} setLogStrategy={setLogStrategy} />;
+      case 'strategy_logs':
+        return (
+          <StrategyLogsPage
+            strategy={logStrategy}
+            token={token}
+            onBack={() => setPage('strategies')}
+          />
+        );
       case 'assets':
         return <AssetsPage />;
       default:
