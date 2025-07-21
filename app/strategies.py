@@ -78,6 +78,8 @@ def keltner_channels(df: pd.DataFrame, length: int, mult: float):
 RUNNING_TASKS: dict[tuple[int, str], dict] = {}
 OPEN_POSITION: dict[tuple[int, str], float | None] = {}
 TRADE_HISTORY: dict[tuple[int, str], list[dict[str, float]]] = {}
+# aggregated logs of buy/sell events for display on strategy page
+GLOBAL_TRADE_LOGS: dict[int, list[str]] = {}
 
 
 # --- STRATEGY CLASSES with DETAILED LOGGING ---
@@ -388,6 +390,12 @@ def get_strategy_logs(
     return {"logs": logs.get(log_type, [])}
 
 
+@router.get("/trade_logs")
+def get_all_trade_logs(current_user: dict = Depends(auth.get_current_user)):
+    """Return aggregated buy/sell events across all strategies."""
+    return {"logs": GLOBAL_TRADE_LOGS.get(current_user["id"], [])}
+
+
 async def _run_strategy_loop(strategy, client, user_id: int, strategy_id: str):
     """Background loop that continuously checks signals and logs trades."""
     symbol_map = {
@@ -430,14 +438,32 @@ async def _run_strategy_loop(strategy, client, user_id: int, strategy_id: str):
             if signal == "BUY" and OPEN_POSITION.get(key) is None:
                 OPEN_POSITION[key] = price
                 log_detail(strategy_id, f"Entering trade at {price}")
-                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(f"BUY {symbol} @ {price}")
+                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
+                    f"BUY {symbol} @ {price}"
+                )
+                logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
+                logs.append(f"BUY {symbol} @ {price}")
+                if len(logs) > 1000:
+                    logs.pop(0)
             elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
                 entry = OPEN_POSITION[key]
                 OPEN_POSITION[key] = None
-                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(f"SELL {symbol} @ {price}")
-                TRADE_HISTORY.setdefault(key, []).append({"entry_price": entry, "exit_price": price})
+                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
+                    f"SELL {symbol} @ {price}"
+                )
+                TRADE_HISTORY.setdefault(key, []).append(
+                    {"entry_price": entry, "exit_price": price}
+                )
                 profit = price - entry
-                log_detail(strategy_id, f"Exiting trade at {price} (profit {profit:.2f})")
+                pct = (profit / entry) * 100 if entry else 0.0
+                logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
+                logs.append(f"SELL {symbol} @ {price} ({pct:.2f}% profit)")
+                if len(logs) > 1000:
+                    logs.pop(0)
+                log_detail(
+                    strategy_id,
+                    f"Exiting trade at {price} (profit {profit:.2f})",
+                )
         except asyncio.CancelledError:
             break
         except Exception as exc:
