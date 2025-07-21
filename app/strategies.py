@@ -7,6 +7,12 @@ from .supabase_db import db
 
 router = APIRouter()
 
+# simple in-memory logs for demo purposes
+STRATEGY_LOGS = {
+    "squeeze_breakout": {"detail": [], "trade": []},
+    "squeeze_breakout_doge_1h": {"detail": [], "trade": []},
+}
+
 
 def ema(series: pd.Series, length: int) -> pd.Series:
     """Simple exponential moving average."""
@@ -56,6 +62,9 @@ def test_buy(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    STRATEGY_LOGS.setdefault("manual", {"detail": [], "trade": []})["trade"].append(
+        f"BUY {symbol.upper()} qty {order.get('executedQty', amount)}"
+    )
     return {"buy": order}
 
 
@@ -75,18 +84,32 @@ def test_sell(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    STRATEGY_LOGS.setdefault("manual", {"detail": [], "trade": []})["trade"].append(
+        f"SELL {symbol.upper()} qty {order.get('executedQty', quantity)}"
+    )
     return {"sell": order}
+
+
+@router.get("/strategy/{strategy_id}/logs")
+def get_strategy_logs(
+    strategy_id: str,
+    log_type: str = "detail",
+    current_user: dict = Depends(auth.get_current_user),
+):
+    logs = STRATEGY_LOGS.get(strategy_id, {"detail": [], "trade": []})
+    return {"logs": logs.get(log_type, [])}
 
 
 class SqueezeBreakoutStrategy:
     """Implements a Bollinger/Keltner squeeze breakout strategy."""
 
-    def __init__(self):
+    def __init__(self, trade_amount: float = 0.0):
         """Initialize indicator parameters."""
         self.ema_length = 200
         self.squeeze_length = 20
         self.bb_mult = 2.0
         self.kc_mult = 1.5
+        self.trade_amount = trade_amount
         print("Squeeze Breakout Strategy Initialized")
 
     def check_signal(self, df: pd.DataFrame) -> str:
@@ -137,7 +160,7 @@ class SqueezeBreakoutStrategy:
 class SqueezeBreakoutStrategy_DOGE_1H:
     """Squeeze Breakout strategy for DOGEUSDT on the 1H timeframe."""
 
-    def __init__(self):
+    def __init__(self, trade_amount: float = 0.0):
         """Initialize indicator parameters for DOGE/USDT."""
         self.symbol = "DOGEUSDT"
         self.interval = "1h"
@@ -145,6 +168,7 @@ class SqueezeBreakoutStrategy_DOGE_1H:
         self.squeeze_length = 20
         self.bb_mult = 2.0
         self.kc_mult = 1.5
+        self.trade_amount = trade_amount
         print("Squeeze Breakout Strategy for DOGE/USDT (1H) Initialized")
 
     def check_signal(self, df: pd.DataFrame) -> str:
@@ -205,7 +229,7 @@ if __name__ == "__main__":
         "volume": [100] * 210,
     }
     df = pd.DataFrame(dummy_data)
-    strategy = SqueezeBreakoutStrategy()
+    strategy = SqueezeBreakoutStrategy(trade_amount=10.0)
     signal = strategy.check_signal(df.copy())
     print(f"The final signal for the latest candle is: {signal}")
 
