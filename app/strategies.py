@@ -113,6 +113,7 @@ def run_strategy(
 ):
     """Execute a single evaluation of the strategy and log the steps."""
     client = _get_client(current_user["id"])
+    _log(strategy_id, f"Strategy started with amount {amount}")
     if strategy_id == "squeeze_breakout":
         if not symbol:
             raise HTTPException(status_code=400, detail="symbol required")
