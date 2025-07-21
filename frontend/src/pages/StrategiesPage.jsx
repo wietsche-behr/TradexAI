@@ -8,6 +8,7 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState('buy');
   const [strategies, setStrategies] = useState([]);
+  const [tradeAmounts, setTradeAmounts] = useState({});
   const token = localStorage.getItem('token');
 
   useEffect(() => {
@@ -62,10 +63,20 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
 
   const toggleStrategy = (id, running) => {
     const endpoint = running ? `/strategy/${id}/stop` : `/strategy/${id}/start`;
-    fetch(`http://localhost:8000${endpoint}`, {
+    const amount = tradeAmounts[id];
+    if (!running && (!amount || amount.trim() === '')) {
+      toast.error('Please enter the trade amount');
+      return;
+    }
+    const options = {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
-    })
+    };
+    if (!running) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify({ amount: parseFloat(amount) });
+    }
+    fetch(`http://localhost:8000${endpoint}`, options)
       .then((res) => {
         if (!res.ok) throw new Error();
         return res.json();
@@ -121,7 +132,16 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
             <span className="font-medium text-gray-700 dark:text-gray-200">
               {s.name}
             </span>
-            <div className="space-x-2">
+            <div className="flex items-center space-x-2">
+              <input
+                type="number"
+                placeholder="Amount"
+                value={tradeAmounts[s.id] || ''}
+                onChange={(e) =>
+                  setTradeAmounts({ ...tradeAmounts, [s.id]: e.target.value })
+                }
+                className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
+              />
               <button
                 onClick={() => toggleStrategy(s.id, s.running)}
                 className={`px-3 py-1 rounded-md text-white text-sm ${s.running ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
