@@ -3,6 +3,7 @@ from binance.client import Client
 import pandas as pd
 import asyncio
 from datetime import datetime
+from contextvars import ContextVar
 
 from . import auth
 from .supabase_db import db
@@ -18,30 +19,30 @@ AVAILABLE_STRATEGIES = {
 }
 
 # --- LOGGING SETUP ---
-# Expanded to include all four strategies
-STRATEGY_LOGS = {
-    "squeeze_breakout_btc_4h": {"detail": [], "trade": []},
-    "squeeze_breakout_xrp_1h": {"detail": [], "trade": []},
-    "squeeze_breakout_doge_1h": {"detail": [], "trade": []},
-    "squeeze_breakout_sol_4h": {"detail": [], "trade": []},
-    "manual": {"detail": [], "trade": []},
-}
+current_user_ctx: ContextVar[int | None] = ContextVar("current_user_ctx", default=None)
+STRATEGY_LOGS: dict[str, dict[str, list[str]]] = {}
+
+
+def _log_key(user_id: int | None, strategy_id: str) -> str:
+    key = strategy_id.lower()
+    return f"{user_id}:{key}" if user_id is not None else key
 
 
 def log_detail(strategy_id: str, message: str):
     """Appends a detailed, timestamped log message for a given strategy."""
-    log_key = strategy_id.lower()
-    if log_key in STRATEGY_LOGS:
-        # Keep the log to a reasonable size to avoid memory issues
-        if len(STRATEGY_LOGS[log_key]["detail"]) > 200:
-            STRATEGY_LOGS[log_key]["detail"].pop(0)
-
-        timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
-        STRATEGY_LOGS[log_key]["detail"].append(f"[{timestamp}] {message}")
+    user_id = current_user_ctx.get()
+    key = _log_key(user_id, strategy_id)
+    logs = STRATEGY_LOGS.setdefault(key, {"detail": [], "trade": []})
+    if len(logs["detail"]) > 200:
+        logs["detail"].pop(0)
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    logs["detail"].append(f"[{timestamp}] {message}")
 
 
 def _log(strategy_id: str, message: str, log_type: str = "detail") -> None:
-    logs = STRATEGY_LOGS.setdefault(strategy_id, {"detail": [], "trade": []})
+    user_id = current_user_ctx.get()
+    key = _log_key(user_id, strategy_id)
+    logs = STRATEGY_LOGS.setdefault(key, {"detail": [], "trade": []})
     logs.setdefault(log_type, []).append(message)
 
 
@@ -74,19 +75,9 @@ def keltner_channels(df: pd.DataFrame, length: int, mult: float):
 
 # --- RUNNING STRATEGIES ---
 # keep track of running background tasks and trade history
-RUNNING_TASKS: dict[str, asyncio.Task] = {}
-OPEN_POSITION: dict[str, float | None] = {
-    "squeeze_breakout_btc_4h": None,
-    "squeeze_breakout_xrp_1h": None,
-    "squeeze_breakout_doge_1h": None,
-    "squeeze_breakout_sol_4h": None,
-}
-TRADE_HISTORY: dict[str, list[dict[str, float]]] = {
-    "squeeze_breakout_btc_4h": [],
-    "squeeze_breakout_xrp_1h": [],
-    "squeeze_breakout_doge_1h": [],
-    "squeeze_breakout_sol_4h": [],
-}
+RUNNING_TASKS: dict[tuple[int, str], dict] = {}
+OPEN_POSITION: dict[tuple[int, str], float | None] = {}
+TRADE_HISTORY: dict[tuple[int, str], list[dict[str, float]]] = {}
 
 
 # --- STRATEGY CLASSES with DETAILED LOGGING ---
@@ -346,6 +337,7 @@ def test_buy(
     current_user: dict = Depends(auth.get_current_user),
 ):
     client = _get_client(current_user["id"])
+    token = current_user_ctx.set(current_user["id"])
     try:
         order = client.create_order(
             symbol=symbol.upper(),
@@ -355,6 +347,8 @@ def test_buy(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        current_user_ctx.reset(token)
     _log("manual", f"BUY {symbol.upper()} qty {order.get('executedQty', amount)}", "trade")
     _log("manual", f"Placed market BUY order for {symbol.upper()} amount {amount}")
     return {"buy": order}
@@ -367,6 +361,7 @@ def test_sell(
     current_user: dict = Depends(auth.get_current_user),
 ):
     client = _get_client(current_user["id"])
+    token = current_user_ctx.set(current_user["id"])
     try:
         order = client.create_order(
             symbol=symbol.upper(),
@@ -376,6 +371,8 @@ def test_sell(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        current_user_ctx.reset(token)
     _log("manual", f"SELL {symbol.upper()} qty {order.get('executedQty', quantity)}", "trade")
     _log("manual", f"Placed market SELL order for {symbol.upper()} qty {quantity}")
     return {"sell": order}
@@ -387,11 +384,11 @@ def get_strategy_logs(
     log_type: str = "detail",
     current_user: dict = Depends(auth.get_current_user),
 ):
-    logs = STRATEGY_LOGS.get(strategy_id, {"detail": [], "trade": []})
+    logs = STRATEGY_LOGS.get(_log_key(current_user["id"], strategy_id), {"detail": [], "trade": []})
     return {"logs": logs.get(log_type, [])}
 
 
-async def _run_strategy_loop(strategy, client, strategy_id: str):
+async def _run_strategy_loop(strategy, client, user_id: int, strategy_id: str):
     """Background loop that continuously checks signals and logs trades."""
     symbol_map = {
         "squeeze_breakout_btc_4h": ("BTCUSDT", Client.KLINE_INTERVAL_4HOUR),
@@ -401,6 +398,8 @@ async def _run_strategy_loop(strategy, client, strategy_id: str):
     }
     symbol, interval = symbol_map[strategy_id]
     limit = strategy.ema_length + strategy.squeeze_length + 50
+    key = (user_id, strategy_id)
+    token = current_user_ctx.set(user_id)
     while True:
         try:
             klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
@@ -428,15 +427,15 @@ async def _run_strategy_loop(strategy, client, strategy_id: str):
 
             signal = strategy.check_signal(df)
             price = float(df.iloc[-1]["close"])
-            if signal == "BUY" and OPEN_POSITION[strategy_id] is None:
-                OPEN_POSITION[strategy_id] = price
+            if signal == "BUY" and OPEN_POSITION.get(key) is None:
+                OPEN_POSITION[key] = price
                 log_detail(strategy_id, f"Entering trade at {price}")
-                STRATEGY_LOGS[strategy_id]["trade"].append(f"BUY {symbol} @ {price}")
-            elif signal == "SELL" and OPEN_POSITION[strategy_id] is not None:
-                entry = OPEN_POSITION[strategy_id]
-                OPEN_POSITION[strategy_id] = None
-                STRATEGY_LOGS[strategy_id]["trade"].append(f"SELL {symbol} @ {price}")
-                TRADE_HISTORY[strategy_id].append({"entry_price": entry, "exit_price": price})
+                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(f"BUY {symbol} @ {price}")
+            elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
+                entry = OPEN_POSITION[key]
+                OPEN_POSITION[key] = None
+                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(f"SELL {symbol} @ {price}")
+                TRADE_HISTORY.setdefault(key, []).append({"entry_price": entry, "exit_price": price})
                 profit = price - entry
                 log_detail(strategy_id, f"Exiting trade at {price} (profit {profit:.2f})")
         except asyncio.CancelledError:
@@ -444,32 +443,48 @@ async def _run_strategy_loop(strategy, client, strategy_id: str):
         except Exception as exc:
             log_detail(strategy_id, f"ERROR: {exc}")
         await asyncio.sleep(5)
+    current_user_ctx.reset(token)
 
 
 @router.post("/strategy/{strategy_id}/start")
 async def start_strategy(strategy_id: str, current_user: dict = Depends(auth.get_current_user)):
     strategy_id = strategy_id.lower()
-    if strategy_id in RUNNING_TASKS:
+    key = (current_user["id"], strategy_id)
+    if key in RUNNING_TASKS:
+        raise HTTPException(status_code=400, detail="Strategy already running")
+    existing = db.get_active_user_strategy(current_user["id"], strategy_id)
+    if existing:
         raise HTTPException(status_code=400, detail="Strategy already running")
     cls = STRATEGY_CLASSES.get(strategy_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Unknown strategy")
     client = _get_client(current_user["id"])
     strategy = cls()
-    task = asyncio.create_task(_run_strategy_loop(strategy, client, strategy_id))
-    RUNNING_TASKS[strategy_id] = task
+    run = db.create_user_strategy_run(current_user["id"], strategy_id)
+    task = asyncio.create_task(_run_strategy_loop(strategy, client, current_user["id"], strategy_id))
+    RUNNING_TASKS[key] = {"task": task, "run_id": run["id"]}
+    OPEN_POSITION.setdefault(key, None)
+    TRADE_HISTORY.setdefault(key, [])
+    token = current_user_ctx.set(current_user["id"])
     log_detail(strategy_id, "Strategy started")
+    current_user_ctx.reset(token)
     return {"status": "started"}
 
 
 @router.post("/strategy/{strategy_id}/stop")
 async def stop_strategy(strategy_id: str, current_user: dict = Depends(auth.get_current_user)):
     strategy_id = strategy_id.lower()
-    task = RUNNING_TASKS.pop(strategy_id, None)
-    if not task:
+    key = (current_user["id"], strategy_id)
+    item = RUNNING_TASKS.pop(key, None)
+    if not item:
         raise HTTPException(status_code=404, detail="Strategy not running")
-    task.cancel()
+    item["task"].cancel()
+    if item.get("run_id"):
+        db.stop_user_strategy_run(item["run_id"])
+    OPEN_POSITION.pop(key, None)
+    token = current_user_ctx.set(current_user["id"])
     log_detail(strategy_id, "Strategy stopped")
+    current_user_ctx.reset(token)
     return {"status": "stopped"}
 
 
@@ -481,6 +496,6 @@ def list_strategies(current_user: dict = Depends(auth.get_current_user)):
         results.append({
             "id": sid,
             "name": name,
-            "running": sid in RUNNING_TASKS,
+            "running": (current_user["id"], sid) in RUNNING_TASKS,
         })
     return {"strategies": results}
