@@ -177,6 +177,11 @@ class SupabaseDB:
         res = self._request("GET", "/user_strategy_runs", params=params)
         return res[0] if res else None
 
+    def get_active_user_strategies(self, user_id: int):
+        """Return all active strategy runs for a user."""
+        params = {"user_id": f"eq.{user_id}", "is_running": "eq.true"}
+        return self._request("GET", "/user_strategy_runs", params=params) or []
+
     def create_user_strategy_run(self, user_id: int, strategy_id: str):
         data = {"user_id": user_id, "strategy_id": strategy_id}
         res = self._request("POST", "/user_strategy_runs", data=data)

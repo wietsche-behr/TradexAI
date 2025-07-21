@@ -524,11 +524,18 @@ async def stop_strategy(strategy_id: str, current_user: dict = Depends(auth.get_
     strategy_id = strategy_id.lower()
     key = (current_user["id"], strategy_id)
     item = RUNNING_TASKS.pop(key, None)
-    if not item:
-        raise HTTPException(status_code=404, detail="Strategy not running")
-    item["task"].cancel()
-    if item.get("run_id"):
-        db.stop_user_strategy_run(item["run_id"])
+    run_id = None
+    if item:
+        item["task"].cancel()
+        run_id = item.get("run_id")
+    else:
+        existing = db.get_active_user_strategy(current_user["id"], strategy_id)
+        if existing:
+            run_id = existing["id"]
+        else:
+            raise HTTPException(status_code=404, detail="Strategy not running")
+    if run_id:
+        db.stop_user_strategy_run(run_id)
     OPEN_POSITION.pop(key, None)
     token = current_user_ctx.set(current_user["id"])
     log_detail(strategy_id, "Strategy stopped")
@@ -539,11 +546,15 @@ async def stop_strategy(strategy_id: str, current_user: dict = Depends(auth.get_
 @router.get("/strategies")
 def list_strategies(current_user: dict = Depends(auth.get_current_user)):
     """Return available strategies and running status."""
+    active_runs = {
+        run["strategy_id"]
+        for run in db.get_active_user_strategies(current_user["id"])
+    }
     results = []
     for sid, name in AVAILABLE_STRATEGIES.items():
         results.append({
             "id": sid,
             "name": name,
-            "running": (current_user["id"], sid) in RUNNING_TASKS,
+            "running": (current_user["id"], sid) in RUNNING_TASKS or sid in active_runs,
         })
     return {"strategies": results}
