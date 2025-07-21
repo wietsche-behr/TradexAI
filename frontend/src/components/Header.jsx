@@ -28,8 +28,10 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
   };
 
   return (
-    <header className="flex justify-between items-center p-4 text-gray-800 dark:text-white">
-      <div className="text-2xl font-bold tracking-wider flex items-center space-x-4">
+    <header
+      className="sticky top-0 z-20 flex items-center p-4 text-gray-800 dark:text-white bg-white/70 dark:bg-gray-900/50 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow"
+    >
+      <div className="flex-1 text-2xl font-bold tracking-wider flex items-center space-x-4">
         <span>
           AURA<span className="text-cyan-500 dark:text-cyan-400">BOT</span>
         </span>
@@ -40,8 +42,8 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           {formatValue()}
         </button>
       </div>
-      <div className="flex items-center space-x-6">
-        <div className="hidden md:flex items-center space-x-6 bg-gray-500/10 dark:bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-gray-400/20 dark:border-white/20">
+      <nav className="hidden md:flex flex-grow justify-center">
+        <div className="flex items-center space-x-6 bg-gray-500/10 dark:bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-gray-400/20 dark:border-white/20">
           <a
             href="#"
             onClick={() => setPage('dashboard')}
@@ -82,7 +84,8 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
             Analytics
           </a>
         </div>
-        <div className="flex items-center space-x-4">
+      </nav>
+      <div className="flex items-center space-x-4">
           <button
             onClick={toggleTheme}
             className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
@@ -106,7 +109,6 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
             </button>
           </div>
         </div>
-      </div>
-    </header>
-  );
+      </header>
+    );
 }
