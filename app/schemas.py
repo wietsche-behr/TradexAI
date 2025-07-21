@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 class TradeBase(BaseModel):
@@ -14,8 +14,7 @@ class Trade(TradeBase):
     id: int
     owner_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserBase(BaseModel):
     username: str
@@ -28,8 +27,7 @@ class User(UserBase):
     status: str
     trades: List[Trade] = []
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserSettingsBase(BaseModel):
@@ -45,8 +43,7 @@ class UserSettings(UserSettingsBase):
     id: int
     user_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BotConfigBase(BaseModel):
@@ -64,5 +61,4 @@ class BotConfig(BotConfigBase):
     id: int
     user_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
