@@ -9,7 +9,8 @@ This project contains a simple FastAPI backend for a crypto and stock trading bo
    pip install -r requirements.txt
    ```
    Whenever `requirements.txt` is updated, re-run the command above to reinstall
-   the dependencies.
+   the dependencies. The file pins `numpy<2.0` and `pandas-ta>=0.3.14` for
+   compatibility.
 2. Create a project in [Supabase](https://supabase.com) and create the following tables:
    - `users` and `trades` matching the models in `app/schemas.py`.
    - `user_settings` using the SQL below.
