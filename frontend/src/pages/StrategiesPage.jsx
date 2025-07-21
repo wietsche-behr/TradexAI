@@ -85,6 +85,18 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
       .then((data) => {
         setBotConfig(data);
         toast.success(isActive ? 'Strategy started' : 'Strategy stopped');
+        if (isActive) {
+          fetch(`http://localhost:8000/strategy/${strategy}/run`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ amount: payload.amount }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => {});
+        }
       })
       .catch(() => toast.error('Error updating strategy'));
   };
