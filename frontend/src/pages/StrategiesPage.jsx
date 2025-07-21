@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 const AVAILABLE_STRATEGIES = [
   { id: 'squeeze_breakout', name: 'Squeeze Breakout' },
   { id: 'squeeze_breakout_doge_1h', name: 'DOGEUSDT 1H Squeeze Breakout' },
+  { id: 'squeeze_breakout_sol_4h', name: 'SOLUSDT 4H Squeeze Breakout' },
 ];
 
 export default function StrategiesPage({ setPage, setLogStrategy }) {
