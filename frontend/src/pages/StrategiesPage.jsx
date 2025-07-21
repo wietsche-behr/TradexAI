@@ -11,12 +11,29 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
+    const stored = JSON.parse(
+      localStorage.getItem('runningStrategyAmounts') || '{}'
+    );
     fetch('http://localhost:8000/strategies', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
-      .then((data) => setStrategies(data.strategies || []))
-      .catch(() => setStrategies([]));
+      .then((data) => {
+        setStrategies(data.strategies || []);
+        const updated = { ...stored };
+        (data.strategies || []).forEach((s) => {
+          if (!s.running) delete updated[s.id];
+        });
+        setTradeAmounts(updated);
+        localStorage.setItem(
+          'runningStrategyAmounts',
+          JSON.stringify(updated)
+        );
+      })
+      .catch(() => {
+        setStrategies([]);
+        setTradeAmounts(stored);
+      });
   }, [token]);
 
   useEffect(() => {
@@ -91,6 +108,22 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
         setStrategies((prev) =>
           prev.map((s) => (s.id === id ? { ...s, running: !running } : s))
         );
+        if (!running) {
+          const updated = { ...tradeAmounts, [id]: amount };
+          setTradeAmounts(updated);
+          localStorage.setItem(
+            'runningStrategyAmounts',
+            JSON.stringify(updated)
+          );
+        } else {
+          const updated = { ...tradeAmounts };
+          delete updated[id];
+          setTradeAmounts(updated);
+          localStorage.setItem(
+            'runningStrategyAmounts',
+            JSON.stringify(updated)
+          );
+        }
       })
       .catch(() => toast.error('Error executing strategy'));
   };
@@ -145,15 +178,21 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
                 {s.name}
               </span>
               <div className="flex items-center space-x-2">
-                <input
-                  type="number"
-                  placeholder="Amount"
-                  value={tradeAmounts[s.id] || ''}
-                  onChange={(e) =>
-                    setTradeAmounts({ ...tradeAmounts, [s.id]: e.target.value })
-                  }
-                  className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
-                />
+                {s.running ? (
+                  <span className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white text-center">
+                    {tradeAmounts[s.id]}
+                  </span>
+                ) : (
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={tradeAmounts[s.id] || ''}
+                    onChange={(e) =>
+                      setTradeAmounts({ ...tradeAmounts, [s.id]: e.target.value })
+                    }
+                    className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
+                  />
+                )}
                 <button
                   onClick={() => toggleStrategy(s.id, s.running)}
                   className={`px-3 py-1 rounded-md text-white text-sm ${s.running ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
