@@ -14,6 +14,12 @@ STRATEGY_LOGS = {
 }
 
 
+def _log(strategy_id: str, message: str, log_type: str = "detail") -> None:
+    """Append a log message for a strategy."""
+    logs = STRATEGY_LOGS.setdefault(strategy_id, {"detail": [], "trade": []})
+    logs.setdefault(log_type, []).append(message)
+
+
 def ema(series: pd.Series, length: int) -> pd.Series:
     """Simple exponential moving average."""
     return series.ewm(span=length, adjust=False).mean()
@@ -62,9 +68,8 @@ def test_buy(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    STRATEGY_LOGS.setdefault("manual", {"detail": [], "trade": []})["trade"].append(
-        f"BUY {symbol.upper()} qty {order.get('executedQty', amount)}"
-    )
+    _log("manual", f"BUY {symbol.upper()} qty {order.get('executedQty', amount)}", "trade")
+    _log("manual", f"Placed market BUY order for {symbol.upper()} amount {amount}")
     return {"buy": order}
 
 
@@ -84,9 +89,8 @@ def test_sell(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    STRATEGY_LOGS.setdefault("manual", {"detail": [], "trade": []})["trade"].append(
-        f"SELL {symbol.upper()} qty {order.get('executedQty', quantity)}"
-    )
+    _log("manual", f"SELL {symbol.upper()} qty {order.get('executedQty', quantity)}", "trade")
+    _log("manual", f"Placed market SELL order for {symbol.upper()} qty {quantity}")
     return {"sell": order}
 
 
@@ -100,23 +104,72 @@ def get_strategy_logs(
     return {"logs": logs.get(log_type, [])}
 
 
+@router.post("/strategy/{strategy_id}/run")
+def run_strategy(
+    strategy_id: str,
+    amount: float = Body(0.0, embed=True),
+    symbol: str | None = Body(None, embed=True),
+    current_user: dict = Depends(auth.get_current_user),
+):
+    """Execute a single evaluation of the strategy and log the steps."""
+    client = _get_client(current_user["id"])
+    if strategy_id == "squeeze_breakout":
+        if not symbol:
+            raise HTTPException(status_code=400, detail="symbol required")
+        strategy = SqueezeBreakoutStrategy(trade_amount=amount)
+        interval = Client.KLINE_INTERVAL_1HOUR
+    elif strategy_id == "squeeze_breakout_doge_1h":
+        strategy = SqueezeBreakoutStrategy_DOGE_1H(trade_amount=amount)
+        symbol = strategy.symbol
+        interval = strategy.interval
+    else:
+        raise HTTPException(status_code=404, detail="Unknown strategy")
+
+    try:
+        klines = client.get_klines(symbol=symbol, interval=interval, limit=strategy.ema_length + 50)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    df = pd.DataFrame(klines, columns=[
+        "open_time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "close_time",
+        "quote_asset_volume",
+        "number_of_trades",
+        "taker_buy_base_volume",
+        "taker_buy_quote_volume",
+        "ignore",
+    ])
+    df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": float})
+
+    signal = strategy.check_signal(df)
+    _log(strategy.strategy_id, f"Final signal: {signal}")
+    return {"signal": signal}
+
+
 class SqueezeBreakoutStrategy:
     """Implements a Bollinger/Keltner squeeze breakout strategy."""
 
     def __init__(self, trade_amount: float = 0.0):
         """Initialize indicator parameters."""
+        self.strategy_id = "squeeze_breakout"
         self.ema_length = 200
         self.squeeze_length = 20
         self.bb_mult = 2.0
         self.kc_mult = 1.5
         self.trade_amount = trade_amount
-        print("Squeeze Breakout Strategy Initialized")
+        _log(self.strategy_id, "Strategy initialized")
 
     def check_signal(self, df: pd.DataFrame) -> str:
         """Return BUY, SELL or HOLD for the latest candle."""
         # --- Calculate Indicators ---
         # 1. Trend filter EMA
         df[f"EMA_{self.ema_length}"] = ema(df["close"], self.ema_length)
+        _log(self.strategy_id, f"Calculated EMA{self.ema_length}")
 
         # 2. Squeeze indicators (Bollinger Bands & Keltner Channels)
         bbl, bbu = bollinger_bands(df["close"], self.squeeze_length, self.bb_mult)
@@ -125,10 +178,12 @@ class SqueezeBreakoutStrategy:
         kcl, kcu = keltner_channels(df, self.squeeze_length, self.kc_mult)
         df[f"KCL_{self.squeeze_length}_{self.kc_mult}"] = kcl
         df[f"KCU_{self.squeeze_length}_{self.kc_mult}"] = kcu
+        _log(self.strategy_id, "Computed Bollinger Bands and Keltner Channels")
 
         # 3. Donchian Channels for entry/exit
         df["don_h"] = df["high"].rolling(self.squeeze_length).max()
         df["don_l"] = df["low"].rolling(self.squeeze_length).min()
+        _log(self.strategy_id, "Calculated Donchian Channels")
 
         # --- Get Latest Data ---
         latest = df.iloc[-1]
@@ -136,6 +191,10 @@ class SqueezeBreakoutStrategy:
 
         # --- Strategy Conditions ---
         is_bull_market = latest["close"] > latest[f"EMA_{self.ema_length}"]
+        _log(
+            self.strategy_id,
+            "Price above EMA - bullish trend" if is_bull_market else "Price below EMA - bearish trend",
+        )
 
         squeeze_on_latest = (
             latest[f"BBL_{self.squeeze_length}_{self.bb_mult}"] > latest[f"KCL_{self.squeeze_length}_{self.kc_mult}"]
@@ -146,14 +205,22 @@ class SqueezeBreakoutStrategy:
             and previous[f"BBU_{self.squeeze_length}_{self.bb_mult}"] < previous[f"KCU_{self.squeeze_length}_{self.kc_mult}"]
         )
         squeeze_was_active = squeeze_on_latest or squeeze_on_previous
+        _log(self.strategy_id, "Squeeze condition active" if squeeze_was_active else "No squeeze detected")
 
         entry_signal = latest["close"] > previous["don_h"]
         exit_signal = latest["close"] < previous["don_l"]
+        if entry_signal:
+            _log(self.strategy_id, "Breakout above Donchian high - potential BUY")
+        if exit_signal:
+            _log(self.strategy_id, "Breakdown below Donchian low - potential SELL")
 
         if is_bull_market and squeeze_was_active and entry_signal:
+            _log(self.strategy_id, "Signal -> BUY")
             return "BUY"
         if exit_signal:
+            _log(self.strategy_id, "Signal -> SELL")
             return "SELL"
+        _log(self.strategy_id, "Signal -> HOLD")
         return "HOLD"
 
 
@@ -162,6 +229,7 @@ class SqueezeBreakoutStrategy_DOGE_1H:
 
     def __init__(self, trade_amount: float = 0.0):
         """Initialize indicator parameters for DOGE/USDT."""
+        self.strategy_id = "squeeze_breakout_doge_1h"
         self.symbol = "DOGEUSDT"
         self.interval = "1h"
         self.ema_length = 200
@@ -169,13 +237,14 @@ class SqueezeBreakoutStrategy_DOGE_1H:
         self.bb_mult = 2.0
         self.kc_mult = 1.5
         self.trade_amount = trade_amount
-        print("Squeeze Breakout Strategy for DOGE/USDT (1H) Initialized")
+        _log(self.strategy_id, "Strategy initialized")
 
     def check_signal(self, df: pd.DataFrame) -> str:
         """Return BUY, SELL or HOLD for the latest candle."""
         # --- Calculate Indicators ---
         # 1. Trend filter EMA
         df[f"EMA_{self.ema_length}"] = ema(df["close"], self.ema_length)
+        _log(self.strategy_id, f"Calculated EMA{self.ema_length}")
 
         # 2. Squeeze indicators (Bollinger Bands & Keltner Channels)
         bbl, bbu = bollinger_bands(df["close"], self.squeeze_length, self.bb_mult)
@@ -184,10 +253,12 @@ class SqueezeBreakoutStrategy_DOGE_1H:
         kcl, kcu = keltner_channels(df, self.squeeze_length, self.kc_mult)
         df[f"KCL_{self.squeeze_length}_{self.kc_mult}"] = kcl
         df[f"KCU_{self.squeeze_length}_{self.kc_mult}"] = kcu
+        _log(self.strategy_id, "Computed Bollinger Bands and Keltner Channels")
 
         # 3. Donchian Channels for entry/exit
         df["don_h"] = df["high"].rolling(self.squeeze_length).max()
         df["don_l"] = df["low"].rolling(self.squeeze_length).min()
+        _log(self.strategy_id, "Calculated Donchian Channels")
 
         # --- Get Latest Data ---
         latest = df.iloc[-1]
@@ -195,6 +266,10 @@ class SqueezeBreakoutStrategy_DOGE_1H:
 
         # --- Strategy Conditions ---
         is_bull_market = latest["close"] > latest[f"EMA_{self.ema_length}"]
+        _log(
+            self.strategy_id,
+            "Price above EMA - bullish trend" if is_bull_market else "Price below EMA - bearish trend",
+        )
 
         squeeze_on_latest = (
             latest[f"BBL_{self.squeeze_length}_{self.bb_mult}"]
@@ -209,14 +284,22 @@ class SqueezeBreakoutStrategy_DOGE_1H:
             < previous[f"KCU_{self.squeeze_length}_{self.kc_mult}"]
         )
         squeeze_was_active = squeeze_on_latest or squeeze_on_previous
+        _log(self.strategy_id, "Squeeze condition active" if squeeze_was_active else "No squeeze detected")
 
         entry_signal = latest["close"] > previous["don_h"]
         exit_signal = latest["close"] < previous["don_l"]
+        if entry_signal:
+            _log(self.strategy_id, "Breakout above Donchian high - potential BUY")
+        if exit_signal:
+            _log(self.strategy_id, "Breakdown below Donchian low - potential SELL")
 
         if is_bull_market and squeeze_was_active and entry_signal:
+            _log(self.strategy_id, "Signal -> BUY")
             return "BUY"
         if exit_signal:
+            _log(self.strategy_id, "Signal -> SELL")
             return "SELL"
+        _log(self.strategy_id, "Signal -> HOLD")
         return "HOLD"
 
 
