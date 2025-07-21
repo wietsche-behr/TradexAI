@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks
 from binance.client import Client
 import pandas as pd
+import time
 
 from . import auth
 from .supabase_db import db
@@ -155,6 +156,107 @@ def run_strategy(
     signal = strategy.check_signal(df)
     _log(strategy.strategy_id, f"Final signal: {signal}")
     return {"signal": signal}
+
+
+@router.post("/strategy/{strategy_id}/run_live")
+def run_strategy_live(
+    strategy_id: str,
+    background_tasks: BackgroundTasks,
+    amount: float = Body(0.0, embed=True),
+    symbol: str | None = Body(None, embed=True),
+    iterations: int = Body(3, embed=True),
+    interval_seconds: int = Body(5, embed=True),
+    current_user: dict = Depends(auth.get_current_user),
+):
+    """Run the strategy in a background loop and log progress."""
+    client = _get_client(current_user["id"])
+    _log(strategy_id, f"Live strategy started with amount {amount}")
+    if strategy_id == "squeeze_breakout":
+        if not symbol:
+            raise HTTPException(status_code=400, detail="symbol required")
+        strategy = SqueezeBreakoutStrategy(trade_amount=amount)
+        interval = Client.KLINE_INTERVAL_1HOUR
+    elif strategy_id == "squeeze_breakout_doge_1h":
+        strategy = SqueezeBreakoutStrategy_DOGE_1H(trade_amount=amount)
+        symbol = strategy.symbol
+        interval = strategy.interval
+    elif strategy_id == "squeeze_breakout_sol_4h":
+        strategy = SqueezeBreakoutStrategy_SOL_4H(trade_amount=amount)
+        symbol = strategy.symbol
+        interval = strategy.interval
+    else:
+        raise HTTPException(status_code=404, detail="Unknown strategy")
+
+    background_tasks.add_task(
+        _run_strategy_loop,
+        strategy,
+        client,
+        symbol,
+        interval,
+        iterations,
+        interval_seconds,
+    )
+    return {"status": "running"}
+
+
+def _run_strategy_loop(
+    strategy,
+    client: Client,
+    symbol: str,
+    interval: str,
+    iterations: int,
+    interval_seconds: int,
+):
+    for i in range(iterations):
+        _log(strategy.strategy_id, f"Checking charts (loop {i + 1})")
+        try:
+            klines = client.get_klines(
+                symbol=symbol, interval=interval, limit=strategy.ema_length + 50
+            )
+        except Exception as e:
+            _log(strategy.strategy_id, f"Error fetching klines: {e}")
+            time.sleep(interval_seconds)
+            continue
+
+        df = pd.DataFrame(
+            klines,
+            columns=[
+                "open_time",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "close_time",
+                "quote_asset_volume",
+                "number_of_trades",
+                "taker_buy_base_volume",
+                "taker_buy_quote_volume",
+                "ignore",
+            ],
+        ).astype({"open": float, "high": float, "low": float, "close": float, "volume": float})
+
+        signal = strategy.check_signal(df)
+        _log(strategy.strategy_id, f"Loop {i + 1} signal: {signal}")
+        if signal == "BUY" and strategy.trade_amount > 0:
+            try:
+                order = client.create_order(
+                    symbol=symbol.upper(),
+                    side="BUY",
+                    type="MARKET",
+                    quoteOrderQty=strategy.trade_amount,
+                )
+                _log(
+                    strategy.strategy_id,
+                    f"BUY {symbol.upper()} qty {order.get('executedQty', strategy.trade_amount)}",
+                    "trade",
+                )
+            except Exception as e:
+                _log(strategy.strategy_id, f"Error creating buy order: {e}")
+        else:
+            _log(strategy.strategy_id, "no buy")
+
+        time.sleep(interval_seconds)
 
 
 class SqueezeBreakoutStrategy:
