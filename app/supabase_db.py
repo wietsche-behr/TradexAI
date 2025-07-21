@@ -2,6 +2,7 @@ import os
 import json
 from urllib import request, parse, error
 from cryptography.fernet import Fernet
+from datetime import datetime
 
 
 class SupabaseDB:
@@ -164,6 +165,27 @@ class SupabaseDB:
             return res[0] if res else None
         data["user_id"] = user_id
         res = self._request("POST", "/bot_configs", data=data)
+        return res[0] if res else None
+
+    # User strategy run operations
+    def get_active_user_strategy(self, user_id: int, strategy_id: str):
+        params = {
+            "user_id": f"eq.{user_id}",
+            "strategy_id": f"eq.{strategy_id}",
+            "is_running": "eq.true",
+        }
+        res = self._request("GET", "/user_strategy_runs", params=params)
+        return res[0] if res else None
+
+    def create_user_strategy_run(self, user_id: int, strategy_id: str):
+        data = {"user_id": user_id, "strategy_id": strategy_id}
+        res = self._request("POST", "/user_strategy_runs", data=data)
+        return res[0] if res else None
+
+    def stop_user_strategy_run(self, run_id: int):
+        params = {"id": f"eq.{run_id}"}
+        data = {"is_running": False, "stopped_at": datetime.utcnow().isoformat()}
+        res = self._request("PATCH", "/user_strategy_runs", params=params, data=data)
         return res[0] if res else None
 
 
