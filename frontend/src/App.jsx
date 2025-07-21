@@ -96,6 +96,7 @@ export default function App() {
       <div className="relative z-10 min-h-screen w-full h-full">
         <Header
           theme={theme}
+          token={token}
           toggleTheme={toggleTheme}
           setPage={setPage}
           page={page}
