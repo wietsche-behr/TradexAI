@@ -134,6 +134,68 @@ class SqueezeBreakoutStrategy:
         return "HOLD"
 
 
+class SqueezeBreakoutStrategy_DOGE_1H:
+    """Squeeze Breakout strategy for DOGEUSDT on the 1H timeframe."""
+
+    def __init__(self):
+        """Initialize indicator parameters for DOGE/USDT."""
+        self.symbol = "DOGEUSDT"
+        self.interval = "1h"
+        self.ema_length = 200
+        self.squeeze_length = 20
+        self.bb_mult = 2.0
+        self.kc_mult = 1.5
+        print("Squeeze Breakout Strategy for DOGE/USDT (1H) Initialized")
+
+    def check_signal(self, df: pd.DataFrame) -> str:
+        """Return BUY, SELL or HOLD for the latest candle."""
+        # --- Calculate Indicators ---
+        # 1. Trend filter EMA
+        df[f"EMA_{self.ema_length}"] = ema(df["close"], self.ema_length)
+
+        # 2. Squeeze indicators (Bollinger Bands & Keltner Channels)
+        bbl, bbu = bollinger_bands(df["close"], self.squeeze_length, self.bb_mult)
+        df[f"BBL_{self.squeeze_length}_{self.bb_mult}"] = bbl
+        df[f"BBU_{self.squeeze_length}_{self.bb_mult}"] = bbu
+        kcl, kcu = keltner_channels(df, self.squeeze_length, self.kc_mult)
+        df[f"KCL_{self.squeeze_length}_{self.kc_mult}"] = kcl
+        df[f"KCU_{self.squeeze_length}_{self.kc_mult}"] = kcu
+
+        # 3. Donchian Channels for entry/exit
+        df["don_h"] = df["high"].rolling(self.squeeze_length).max()
+        df["don_l"] = df["low"].rolling(self.squeeze_length).min()
+
+        # --- Get Latest Data ---
+        latest = df.iloc[-1]
+        previous = df.iloc[-2]
+
+        # --- Strategy Conditions ---
+        is_bull_market = latest["close"] > latest[f"EMA_{self.ema_length}"]
+
+        squeeze_on_latest = (
+            latest[f"BBL_{self.squeeze_length}_{self.bb_mult}"]
+            > latest[f"KCL_{self.squeeze_length}_{self.kc_mult}"]
+            and latest[f"BBU_{self.squeeze_length}_{self.bb_mult}"]
+            < latest[f"KCU_{self.squeeze_length}_{self.kc_mult}"]
+        )
+        squeeze_on_previous = (
+            previous[f"BBL_{self.squeeze_length}_{self.bb_mult}"]
+            > previous[f"KCL_{self.squeeze_length}_{self.kc_mult}"]
+            and previous[f"BBU_{self.squeeze_length}_{self.bb_mult}"]
+            < previous[f"KCU_{self.squeeze_length}_{self.kc_mult}"]
+        )
+        squeeze_was_active = squeeze_on_latest or squeeze_on_previous
+
+        entry_signal = latest["close"] > previous["don_h"]
+        exit_signal = latest["close"] < previous["don_l"]
+
+        if is_bull_market and squeeze_was_active and entry_signal:
+            return "BUY"
+        if exit_signal:
+            return "SELL"
+        return "HOLD"
+
+
 if __name__ == "__main__":
     dummy_data = {
         "open": [100] * 210,
