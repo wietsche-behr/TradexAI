@@ -7,7 +7,17 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
   const [symbol, setSymbol] = useState('');
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState('buy');
+  const [strategies, setStrategies] = useState([]);
   const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    fetch('http://localhost:8000/strategies', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setStrategies(data.strategies || []))
+      .catch(() => setStrategies([]));
+  }, [token]);
 
 
   const handleAction = () => {
@@ -50,6 +60,24 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
   const amountPlaceholder = mode === 'buy' ? 'Amount in USDT' : `Amount in ${base}`;
   const buttonColor = mode === 'buy' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600';
 
+  const toggleStrategy = (id, running) => {
+    const endpoint = running ? `/strategy/${id}/stop` : `/strategy/${id}/start`;
+    fetch(`http://localhost:8000${endpoint}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then(() => {
+        setStrategies((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, running: !running } : s))
+        );
+      })
+      .catch(() => toast.error('Error executing strategy'));
+  };
+
   return (
     <main className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 px-2">
@@ -79,6 +107,42 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
           <PlayCircle size={20} />
           <span>{mode === 'buy' ? 'BUY' : 'SELL'}</span>
         </button>
+      </GlassCard>
+
+      <GlassCard className="max-w-2xl mx-auto space-y-4">
+        <h3 className="text-xl font-semibold text-gray-800 dark:text-white">
+          Available Strategies
+        </h3>
+        {strategies.map((s) => (
+          <div
+            key={s.id}
+            className="flex items-center justify-between border-b border-gray-400/20 dark:border-white/20 pb-2 last:border-b-0"
+          >
+            <span className="font-medium text-gray-700 dark:text-gray-200">
+              {s.name}
+            </span>
+            <div className="space-x-2">
+              <button
+                onClick={() => toggleStrategy(s.id, s.running)}
+                className={`px-3 py-1 rounded-md text-white text-sm ${s.running ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
+              >
+                {s.running ? 'Stop' : 'Start'}
+              </button>
+              <button
+                onClick={() => {
+                  setLogStrategy(s.id);
+                  setPage('strategy_logs');
+                }}
+                className="px-3 py-1 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-sm"
+              >
+                Logs
+              </button>
+            </div>
+          </div>
+        ))}
+        {strategies.length === 0 && (
+          <p className="text-gray-500">No strategies found.</p>
+        )}
       </GlassCard>
 
     </main>

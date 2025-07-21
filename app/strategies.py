@@ -9,6 +9,14 @@ from .supabase_db import db
 
 router = APIRouter()
 
+# Mapping of available strategies to human-friendly names
+AVAILABLE_STRATEGIES = {
+    "squeeze_breakout_btc_4h": "Squeeze Breakout BTC 4H",
+    "squeeze_breakout_xrp_1h": "Squeeze Breakout XRP 1H",
+    "squeeze_breakout_doge_1h": "Squeeze Breakout DOGE 1H",
+    "squeeze_breakout_sol_4h": "Squeeze Breakout SOL 4H",
+}
+
 # --- LOGGING SETUP ---
 # Expanded to include all four strategies
 STRATEGY_LOGS = {
@@ -316,6 +324,14 @@ class SqueezeBreakoutStrategy_SOL_4H:
         return "HOLD"
 
 
+# Mapping from strategy ids to their class implementations
+STRATEGY_CLASSES = {
+    "squeeze_breakout_btc_4h": SqueezeBreakoutStrategy_BTC_4H,
+    "squeeze_breakout_xrp_1h": SqueezeBreakoutStrategy_XRP_1H,
+    "squeeze_breakout_doge_1h": SqueezeBreakoutStrategy_DOGE_1H,
+    "squeeze_breakout_sol_4h": SqueezeBreakoutStrategy_SOL_4H,
+}
+
 def _get_client(user_id: int) -> Client:
     settings = db.get_user_settings(user_id)
     if not settings:
@@ -435,13 +451,7 @@ async def start_strategy(strategy_id: str, current_user: dict = Depends(auth.get
     strategy_id = strategy_id.lower()
     if strategy_id in RUNNING_TASKS:
         raise HTTPException(status_code=400, detail="Strategy already running")
-    cls_map = {
-        "squeeze_breakout_btc_4h": SqueezeBreakoutStrategy_BTC_4H,
-        "squeeze_breakout_xrp_1h": SqueezeBreakoutStrategy_XRP_1H,
-        "squeeze_breakout_doge_1h": SqueezeBreakoutStrategy_DOGE_1H,
-        "squeeze_breakout_sol_4h": SqueezeBreakoutStrategy_SOL_4H,
-    }
-    cls = cls_map.get(strategy_id)
+    cls = STRATEGY_CLASSES.get(strategy_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Unknown strategy")
     client = _get_client(current_user["id"])
@@ -461,3 +471,16 @@ async def stop_strategy(strategy_id: str, current_user: dict = Depends(auth.get_
     task.cancel()
     log_detail(strategy_id, "Strategy stopped")
     return {"status": "stopped"}
+
+
+@router.get("/strategies")
+def list_strategies(current_user: dict = Depends(auth.get_current_user)):
+    """Return available strategies and running status."""
+    results = []
+    for sid, name in AVAILABLE_STRATEGIES.items():
+        results.append({
+            "id": sid,
+            "name": name,
+            "running": sid in RUNNING_TASKS,
+        })
+    return {"strategies": results}
