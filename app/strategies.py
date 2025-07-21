@@ -396,7 +396,13 @@ def get_all_trade_logs(current_user: dict = Depends(auth.get_current_user)):
     return {"logs": GLOBAL_TRADE_LOGS.get(current_user["id"], [])}
 
 
-async def _run_strategy_loop(strategy, client, user_id: int, strategy_id: str):
+async def _run_strategy_loop(
+    strategy,
+    client,
+    user_id: int,
+    strategy_id: str,
+    amount: float | None = None,
+):
     """Background loop that continuously checks signals and logs trades."""
     symbol_map = {
         "squeeze_breakout_btc_4h": ("BTCUSDT", Client.KLINE_INTERVAL_4HOUR),
@@ -473,7 +479,11 @@ async def _run_strategy_loop(strategy, client, user_id: int, strategy_id: str):
 
 
 @router.post("/strategy/{strategy_id}/start")
-async def start_strategy(strategy_id: str, current_user: dict = Depends(auth.get_current_user)):
+async def start_strategy(
+    strategy_id: str,
+    amount: float | None = Body(None, embed=True),
+    current_user: dict = Depends(auth.get_current_user),
+):
     strategy_id = strategy_id.lower()
     key = (current_user["id"], strategy_id)
     if key in RUNNING_TASKS:
@@ -487,8 +497,10 @@ async def start_strategy(strategy_id: str, current_user: dict = Depends(auth.get
     client = _get_client(current_user["id"])
     strategy = cls()
     run = db.create_user_strategy_run(current_user["id"], strategy_id)
-    task = asyncio.create_task(_run_strategy_loop(strategy, client, current_user["id"], strategy_id))
-    RUNNING_TASKS[key] = {"task": task, "run_id": run["id"]}
+    task = asyncio.create_task(
+        _run_strategy_loop(strategy, client, current_user["id"], strategy_id, amount)
+    )
+    RUNNING_TASKS[key] = {"task": task, "run_id": run["id"], "amount": amount}
     OPEN_POSITION.setdefault(key, None)
     TRADE_HISTORY.setdefault(key, [])
     token = current_user_ctx.set(current_user["id"])

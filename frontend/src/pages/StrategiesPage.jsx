@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import { toast } from 'react-hot-toast';
 
 export default function StrategiesPage({ setPage, setLogStrategy }) {
   const [symbol, setSymbol] = useState('');
   const [amount, setAmount] = useState('');
-  const [mode, setMode] = useState('buy');
   const [strategies, setStrategies] = useState([]);
   const [tradeAmounts, setTradeAmounts] = useState({});
   const [tradeLogs, setTradeLogs] = useState([]);
@@ -36,12 +34,11 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
   }, [token]);
 
 
-  const handleAction = () => {
+  const handleTestAction = (action) => {
     if (!symbol || !amount) return;
-    const endpoint =
-      mode === 'buy' ? '/strategy/test/buy' : '/strategy/test/sell';
+    const endpoint = action === 'buy' ? '/strategy/test/buy' : '/strategy/test/sell';
     const payload =
-      mode === 'buy'
+      action === 'buy'
         ? { symbol, amount: parseFloat(amount) }
         : { symbol, quantity: parseFloat(amount) };
 
@@ -58,23 +55,17 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
         return res.json();
       })
       .then((data) => {
-        if (mode === 'buy') {
+        if (action === 'buy') {
           toast.success('Bought successfully');
           const qty = data.buy?.executedQty || amount;
           setAmount(qty);
-          setMode('sell');
         } else {
           toast.success('Sold successfully');
-          setMode('buy');
           setAmount('');
         }
       })
       .catch(() => toast.error('Error executing order'));
   };
-
-  const base = symbol.endsWith('USDT') ? symbol.replace('USDT', '') : symbol;
-  const amountPlaceholder = mode === 'buy' ? 'Amount in USDT' : `Amount in ${base}`;
-  const buttonColor = mode === 'buy' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600';
 
   const toggleStrategy = (id, running) => {
     const endpoint = running ? `/strategy/${id}/stop` : `/strategy/${id}/start`;
@@ -113,29 +104,37 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GlassCard className="space-y-4">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Available Strategies</h3>
-          <div className="border-b border-gray-400/20 dark:border-white/20 pb-4 space-y-2">
-            <h4 className="font-medium text-gray-700 dark:text-gray-200">Test Strategy</h4>
-            <input
-              type="text"
-              placeholder="Trading pair e.g. XRPUSDT"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              className="w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
-            />
-            <input
-              type="text"
-              placeholder={amountPlaceholder}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
-            />
-            <button
-              onClick={handleAction}
-              className={`w-full py-2 rounded-lg text-white font-bold flex items-center justify-center space-x-2 shadow-lg ${buttonColor}`}
-            >
-              <PlayCircle size={18} />
-              <span>{mode === 'buy' ? 'BUY' : 'SELL'}</span>
-            </button>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between border-b border-gray-400/20 dark:border-white/20 pb-2">
+            <span className="font-medium text-gray-700 dark:text-gray-200">Test Strategy</span>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                placeholder="Symbol"
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
+              />
+              <input
+                type="text"
+                placeholder="Amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
+              />
+              <button
+                onClick={() => handleTestAction('buy')}
+                className="px-3 py-1 rounded-md bg-green-500 hover:bg-green-600 text-white text-sm"
+              >
+                Buy
+              </button>
+              <button
+                onClick={() => handleTestAction('sell')}
+                className="px-3 py-1 rounded-md bg-red-500 hover:bg-red-600 text-white text-sm"
+              >
+                Sell
+              </button>
+            </div>
           </div>
           {strategies.map((s) => (
             <div
@@ -176,6 +175,7 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
           {strategies.length === 0 && (
             <p className="text-gray-500">No strategies found.</p>
           )}
+        </div>
         </GlassCard>
         <GlassCard className="space-y-4">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Trade Logs</h3>
