@@ -351,7 +351,12 @@ def test_buy(
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         current_user_ctx.reset(token)
-    _log("manual", f"BUY {symbol.upper()} qty {order.get('executedQty', amount)}", "trade")
+    qty = order.get("executedQty", amount)
+    _log("manual", f"BUY {symbol.upper()} qty {qty}", "trade")
+    logs = GLOBAL_TRADE_LOGS.setdefault(current_user["id"], [])
+    logs.append(f"BUY {symbol.upper()} qty {qty}")
+    if len(logs) > 1000:
+        logs.pop(0)
     _log("manual", f"Placed market BUY order for {symbol.upper()} amount {amount}")
     return {"buy": order}
 
@@ -375,7 +380,12 @@ def test_sell(
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         current_user_ctx.reset(token)
-    _log("manual", f"SELL {symbol.upper()} qty {order.get('executedQty', quantity)}", "trade")
+    qty = order.get("executedQty", quantity)
+    _log("manual", f"SELL {symbol.upper()} qty {qty}", "trade")
+    logs = GLOBAL_TRADE_LOGS.setdefault(current_user["id"], [])
+    logs.append(f"SELL {symbol.upper()} qty {qty}")
+    if len(logs) > 1000:
+        logs.pop(0)
     _log("manual", f"Placed market SELL order for {symbol.upper()} qty {quantity}")
     return {"sell": order}
 
