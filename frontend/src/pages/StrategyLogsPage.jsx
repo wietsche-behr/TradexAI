@@ -8,18 +8,25 @@ export default function StrategyLogsPage({ strategy, token, onBack }) {
 
   useEffect(() => {
     if (!strategy) return;
-    fetch(`http://localhost:8000/strategy/${strategy}/logs?log_type=detail`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => setDetailLogs(data.logs || []))
-      .catch(() => setDetailLogs([]));
-    fetch(`http://localhost:8000/strategy/${strategy}/logs?log_type=trade`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => setTradeLogs(data.logs || []))
-      .catch(() => setTradeLogs([]));
+
+    const fetchLogs = () => {
+      fetch(`http://localhost:8000/strategy/${strategy}/logs?log_type=detail`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => setDetailLogs(data.logs || []))
+        .catch(() => {});
+      fetch(`http://localhost:8000/strategy/${strategy}/logs?log_type=trade`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => setTradeLogs(data.logs || []))
+        .catch(() => {});
+    };
+
+    fetchLogs();
+    const id = setInterval(fetchLogs, 2000);
+    return () => clearInterval(id);
   }, [strategy, token]);
 
   const activeClass =
