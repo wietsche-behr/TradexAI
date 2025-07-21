@@ -10,5 +10,4 @@ cryptography
 python-binance
 pandas
 numpy<2.0
-pandas-ta>=0.3.14
 setuptools

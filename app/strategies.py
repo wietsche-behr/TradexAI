@@ -1,12 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from binance.client import Client
 import pandas as pd
-import pandas_ta as ta
 
 from . import auth
 from .supabase_db import db
 
 router = APIRouter()
+
+
+def ema(series: pd.Series, length: int) -> pd.Series:
+    """Simple exponential moving average."""
+    return series.ewm(span=length, adjust=False).mean()
+
+
+def bollinger_bands(series: pd.Series, length: int, mult: float):
+    """Return lower and upper Bollinger Bands."""
+    ma = series.rolling(length).mean()
+    std = series.rolling(length).std()
+    upper = ma + mult * std
+    lower = ma - mult * std
+    return lower, upper
+
+
+def keltner_channels(df: pd.DataFrame, length: int, mult: float):
+    """Return lower and upper Keltner Channels."""
+    tp = (df["high"] + df["low"] + df["close"]) / 3
+    tp_ema = tp.ewm(span=length, adjust=False).mean()
+    tr = df["high"] - df["low"]
+    tr_ema = tr.ewm(span=length, adjust=False).mean()
+    upper = tp_ema + mult * tr_ema
+    lower = tp_ema - mult * tr_ema
+    return lower, upper
 
 
 def _get_client(user_id: int) -> Client:
@@ -69,11 +93,15 @@ class SqueezeBreakoutStrategy:
         """Return BUY, SELL or HOLD for the latest candle."""
         # --- Calculate Indicators ---
         # 1. Trend filter EMA
-        df.ta.ema(length=self.ema_length, append=True, col_names=(f"EMA_{self.ema_length}",))
+        df[f"EMA_{self.ema_length}"] = ema(df["close"], self.ema_length)
 
         # 2. Squeeze indicators (Bollinger Bands & Keltner Channels)
-        df.ta.bbands(length=self.squeeze_length, std=self.bb_mult, append=True)
-        df.ta.kc(length=self.squeeze_length, scalar=self.kc_mult, append=True)
+        bbl, bbu = bollinger_bands(df["close"], self.squeeze_length, self.bb_mult)
+        df[f"BBL_{self.squeeze_length}_{self.bb_mult}"] = bbl
+        df[f"BBU_{self.squeeze_length}_{self.bb_mult}"] = bbu
+        kcl, kcu = keltner_channels(df, self.squeeze_length, self.kc_mult)
+        df[f"KCL_{self.squeeze_length}_{self.kc_mult}"] = kcl
+        df[f"KCU_{self.squeeze_length}_{self.kc_mult}"] = kcu
 
         # 3. Donchian Channels for entry/exit
         df["don_h"] = df["high"].rolling(self.squeeze_length).max()
