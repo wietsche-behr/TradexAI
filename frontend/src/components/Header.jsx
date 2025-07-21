@@ -1,10 +1,44 @@
 import { Bell, Settings, User, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
-export default function Header({ theme, toggleTheme, setPage, page, onLogout, user, onOpenSettings }) {
+export default function Header({ theme, toggleTheme, setPage, page, onLogout, user, onOpenSettings, token }) {
+  const [portfolio, setPortfolio] = useState(null);
+  const [display, setDisplay] = useState('USDT');
+
+  useEffect(() => {
+    if (!token) return;
+    fetch('http://localhost:8000/portfolio_value', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setPortfolio(data.total_usdt))
+      .catch(() => setPortfolio(null));
+  }, [token]);
+
+  const toggleDisplay = () => {
+    setDisplay((prev) => (prev === 'USDT' ? 'USD' : prev === 'USD' ? 'ZAR' : 'USDT'));
+  };
+
+  const formatValue = () => {
+    if (portfolio == null) return '...';
+    if (display === 'USDT') return `${portfolio.toFixed(2)} USDT`;
+    if (display === 'USD') return `$${portfolio.toFixed(2)}`;
+    const zarRate = 19; // simple static rate
+    return `R${(portfolio * zarRate).toFixed(2)}`;
+  };
+
   return (
     <header className="flex justify-between items-center p-4 text-gray-800 dark:text-white">
-      <div className="text-2xl font-bold tracking-wider">
-        AURA<span className="text-cyan-500 dark:text-cyan-400">BOT</span>
+      <div className="text-2xl font-bold tracking-wider flex items-center space-x-4">
+        <span>
+          AURA<span className="text-cyan-500 dark:text-cyan-400">BOT</span>
+        </span>
+        <button
+          onClick={toggleDisplay}
+          className="text-sm px-2 py-1 rounded-md bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 transition"
+        >
+          {formatValue()}
+        </button>
       </div>
       <div className="flex items-center space-x-6">
         <div className="hidden md:flex items-center space-x-6 bg-gray-500/10 dark:bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-gray-400/20 dark:border-white/20">
