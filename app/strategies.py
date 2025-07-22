@@ -593,6 +593,16 @@ async def _run_strategy_loop(
                 )
                 if len(logs) > 1000:
                     logs.pop(0)
+                # persist trade
+                db.create_trade(
+                    {
+                        "symbol": symbol,
+                        "side": "BUY",
+                        "quantity": amount or 1,
+                        "price": price,
+                        "owner_id": user_id,
+                    }
+                )
             elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
                 entry = OPEN_POSITION[key]
                 OPEN_POSITION[key] = None
@@ -613,6 +623,16 @@ async def _run_strategy_loop(
                 log_detail(
                     strategy_id,
                     f"Exiting trade at {price} (profit {profit:.2f})",
+                )
+                # persist trade
+                db.create_trade(
+                    {
+                        "symbol": symbol,
+                        "side": "SELL",
+                        "quantity": amount or 1,
+                        "price": price,
+                        "owner_id": user_id,
+                    }
                 )
         except asyncio.CancelledError:
             break
