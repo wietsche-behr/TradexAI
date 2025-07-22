@@ -7,6 +7,7 @@ from contextvars import ContextVar
 
 from . import auth
 from .supabase_db import db
+from . import crud, schemas
 
 router = APIRouter()
 
@@ -593,15 +594,15 @@ async def _run_strategy_loop(
                 )
                 if len(logs) > 1000:
                     logs.pop(0)
-                # persist trade
-                db.create_trade(
-                    {
-                        "symbol": symbol,
-                        "side": "BUY",
-                        "quantity": amount or 1,
-                        "price": price,
-                        "owner_id": user_id,
-                    }
+                # persist trade and update metrics
+                crud.create_trade(
+                    schemas.TradeCreate(
+                        symbol=symbol,
+                        side="BUY",
+                        quantity=amount or 1,
+                        price=price,
+                    ),
+                    user_id,
                 )
             elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
                 entry = OPEN_POSITION[key]
@@ -624,15 +625,15 @@ async def _run_strategy_loop(
                     strategy_id,
                     f"Exiting trade at {price} (profit {profit:.2f})",
                 )
-                # persist trade
-                db.create_trade(
-                    {
-                        "symbol": symbol,
-                        "side": "SELL",
-                        "quantity": amount or 1,
-                        "price": price,
-                        "owner_id": user_id,
-                    }
+                # persist trade and update metrics
+                crud.create_trade(
+                    schemas.TradeCreate(
+                        symbol=symbol,
+                        side="SELL",
+                        quantity=amount or 1,
+                        price=price,
+                    ),
+                    user_id,
                 )
         except asyncio.CancelledError:
             break
