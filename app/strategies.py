@@ -583,29 +583,50 @@ async def _run_strategy_loop(
             signal = strategy.check_signal(df)
             price = float(df.iloc[-1]["close"])
             if signal == "BUY" and OPEN_POSITION.get(key) is None:
+                try:
+                    order = client.create_order(
+                        symbol=symbol,
+                        side="BUY",
+                        type="MARKET",
+                        quoteOrderQty=amount or 1,
+                    )
+                    executed_qty = float(order.get("executedQty", amount or 1))
+                except Exception as exc:
+                    log_detail(strategy_id, f"ERROR placing BUY order: {exc}")
+                    await asyncio.sleep(5)
+                    continue
                 OPEN_POSITION[key] = price
                 log_detail(strategy_id, f"Entering trade at {price}")
                 STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
                     f"BUY {symbol} @ {price}"
                 )
                 logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
-                logs.append(
-                    f"{strategy_name}: BUY {symbol} @ {price}"
-                )
+                logs.append(f"{strategy_name}: BUY {symbol} @ {price}")
                 if len(logs) > 1000:
                     logs.pop(0)
-                # persist trade and update metrics
                 crud.create_trade(
                     schemas.TradeCreate(
                         symbol=symbol,
                         side="BUY",
-                        quantity=amount or 1,
+                        quantity=executed_qty,
                         price=price,
                     ),
                     user_id,
                 )
             elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
                 entry = OPEN_POSITION[key]
+                try:
+                    order = client.create_order(
+                        symbol=symbol,
+                        side="SELL",
+                        type="MARKET",
+                        quantity=amount or 1,
+                    )
+                    executed_qty = float(order.get("executedQty", amount or 1))
+                except Exception as exc:
+                    log_detail(strategy_id, f"ERROR placing SELL order: {exc}")
+                    await asyncio.sleep(5)
+                    continue
                 OPEN_POSITION[key] = None
                 STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
                     f"SELL {symbol} @ {price}"
@@ -625,12 +646,11 @@ async def _run_strategy_loop(
                     strategy_id,
                     f"Exiting trade at {price} (profit {profit:.2f})",
                 )
-                # persist trade and update metrics
                 crud.create_trade(
                     schemas.TradeCreate(
                         symbol=symbol,
                         side="SELL",
-                        quantity=amount or 1,
+                        quantity=executed_qty,
                         price=price,
                     ),
                     user_id,

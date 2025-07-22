@@ -26,6 +26,10 @@ This project contains a simple FastAPI backend for a crypto and stock trading bo
    uvicorn app.main:app --reload
    ```
 
+When a strategy is started it will place real market orders on Binance using the
+API keys configured for the user. Ensure the keys have trading permissions and
+exercise caution as real funds are at risk.
+
 The API documentation is available at `/docs` when the server is running.
 
 ## Supabase SQL
