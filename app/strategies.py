@@ -16,6 +16,7 @@ AVAILABLE_STRATEGIES = {
     "squeeze_breakout_xrp_1h": "Squeeze Breakout XRP 1H",
     "squeeze_breakout_doge_1h": "Squeeze Breakout DOGE 1H",
     "squeeze_breakout_sol_4h": "Squeeze Breakout SOL 4H",
+    "hyper_frequency_ema_cross_btc_1m": "Hyper-Frequency EMA Cross BTC 1M",
 }
 
 # --- LOGGING SETUP ---
@@ -71,6 +72,15 @@ def keltner_channels(df: pd.DataFrame, length: int, mult: float):
     upper = tp_ema + mult * tr_ema
     lower = tp_ema - mult * tr_ema
     return lower, upper
+
+
+def atr(df: pd.DataFrame, length: int) -> pd.Series:
+    """Average true range using exponential moving average."""
+    high_low = df["high"] - df["low"]
+    high_close_prev = (df["high"] - df["close"].shift()).abs()
+    low_close_prev = (df["low"] - df["close"].shift()).abs()
+    tr = pd.concat([high_low, high_close_prev, low_close_prev], axis=1).max(axis=1)
+    return tr.ewm(span=length, adjust=False).mean()
 
 
 # --- RUNNING STRATEGIES ---
@@ -140,6 +150,80 @@ class SqueezeBreakoutStrategy_BTC_4H:
             return "SELL"
 
         log_detail(self.strategy_id, "HOLD: No entry or exit conditions met.")
+        return "HOLD"
+
+
+class HyperFrequencyEMAStrategy:
+    """Hyper-Frequency EMA Cross strategy hard coded for BTCUSDT 1m."""
+
+    def __init__(self):
+        self.strategy_id = "hyper_frequency_ema_cross_btc_1m"
+        self.symbol = "BTCUSDT"
+        self.interval = "1m"
+
+        # strategy parameters
+        self.ema_long_len = 200
+        self.ema_fast_len = 5
+        self.ema_slow_len = 10
+        self.atr_len_vol = 20
+        self.min_vol_percent = 0.05
+
+        # used by _run_strategy_loop for lookback calculation
+        self.ema_length = self.ema_long_len
+        self.squeeze_length = self.atr_len_vol
+
+        print(
+            f"Initialized: {self.strategy_id} for {self.symbol} on {self.interval}"
+        )
+
+    def check_signal(self, df: pd.DataFrame) -> str:
+        log_detail(self.strategy_id, "--- Checking new candle ---")
+
+        df[f"EMA_{self.ema_long_len}"] = ema(df["close"], self.ema_long_len)
+        df[f"EMA_{self.ema_fast_len}"] = ema(df["close"], self.ema_fast_len)
+        df[f"EMA_{self.ema_slow_len}"] = ema(df["close"], self.ema_slow_len)
+        df[f"ATR_{self.atr_len_vol}"] = atr(df, self.atr_len_vol)
+
+        latest = df.iloc[-1]
+        previous = df.iloc[-2]
+
+        vol_pct = (latest[f"ATR_{self.atr_len_vol}"] / latest["close"]) * 100
+        has_vol = vol_pct > self.min_vol_percent
+        log_detail(
+            self.strategy_id,
+            f"Volatility({vol_pct:.3f}%) > Min({self.min_vol_percent}%)? {has_vol}",
+        )
+        if not has_vol:
+            log_detail(self.strategy_id, "HOLD: Market too flat")
+            return "HOLD"
+
+        is_bull = latest["close"] > latest[f"EMA_{self.ema_long_len}"]
+        is_bear = latest["close"] < latest[f"EMA_{self.ema_long_len}"]
+        trend_msg = "Bullish" if is_bull else "Bearish" if is_bear else "Neutral"
+        log_detail(self.strategy_id, f"Trend: {trend_msg}")
+
+        fast_prev = previous[f"EMA_{self.ema_fast_len}"]
+        slow_prev = previous[f"EMA_{self.ema_slow_len}"]
+        fast_now = latest[f"EMA_{self.ema_fast_len}"]
+        slow_now = latest[f"EMA_{self.ema_slow_len}"]
+
+        long_entry = fast_prev <= slow_prev and fast_now > slow_now
+        short_entry = fast_prev >= slow_prev and fast_now < slow_now
+
+        log_detail(
+            self.strategy_id,
+            f"Crossover: FastEMA({fast_now:.2f}) vs SlowEMA({slow_now:.2f})",
+        )
+
+        if is_bull and long_entry:
+            log_detail(self.strategy_id, "BUY SIGNAL CONFIRMED")
+            return "BUY"
+
+        if is_bear and short_entry:
+            log_detail(self.strategy_id, "SELL SIGNAL CONFIRMED")
+            return "SELL"
+
+        log_detail(self.strategy_id, "HOLD: No action, conditions not met")
         return "HOLD"
 
 
@@ -323,6 +407,7 @@ STRATEGY_CLASSES = {
     "squeeze_breakout_xrp_1h": SqueezeBreakoutStrategy_XRP_1H,
     "squeeze_breakout_doge_1h": SqueezeBreakoutStrategy_DOGE_1H,
     "squeeze_breakout_sol_4h": SqueezeBreakoutStrategy_SOL_4H,
+    "hyper_frequency_ema_cross_btc_1m": HyperFrequencyEMAStrategy,
 }
 
 def _get_client(user_id: int) -> Client:
@@ -419,6 +504,7 @@ async def _run_strategy_loop(
         "squeeze_breakout_xrp_1h": ("XRPUSDT", Client.KLINE_INTERVAL_1HOUR),
         "squeeze_breakout_doge_1h": ("DOGEUSDT", Client.KLINE_INTERVAL_1HOUR),
         "squeeze_breakout_sol_4h": ("SOLUSDT", Client.KLINE_INTERVAL_4HOUR),
+        "hyper_frequency_ema_cross_btc_1m": ("BTCUSDT", Client.KLINE_INTERVAL_1MINUTE),
     }
     symbol, interval = symbol_map[strategy_id]
     limit = strategy.ema_length + strategy.squeeze_length + 50
