@@ -3,6 +3,9 @@ import pandas as pd
 from . import auth
 from .supabase_db import db
 
+# Binance trading fee rate (0.1% per trade)
+FEE_RATE = 0.001
+
 router = APIRouter()
 
 
@@ -50,7 +53,9 @@ def _compute_metrics(trades):
             while qty_left > 0 and lst:
                 pos = lst[0]
                 trade_qty = min(pos["quantity"], qty_left)
-                profit_total += (price - pos["price"]) * trade_qty
+                gross = (price - pos["price"]) * trade_qty
+                fees = (price + pos["price"]) * trade_qty * FEE_RATE
+                profit_total += gross - fees
                 qty_left -= trade_qty
                 pos["quantity"] -= trade_qty
                 if pos["quantity"] <= 0:
