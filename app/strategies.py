@@ -17,6 +17,7 @@ AVAILABLE_STRATEGIES = {
     "squeeze_breakout_doge_1h": "Squeeze Breakout DOGE 1H",
     "squeeze_breakout_sol_4h": "Squeeze Breakout SOL 4H",
     "hyper_frequency_ema_cross_btc_1m": "Hyper-Frequency EMA Cross BTC 1M",
+    "continuous_trend_rider_xrp_1m": "Continuous Trend Rider XRP 1M",
 }
 
 # --- LOGGING SETUP ---
@@ -401,6 +402,46 @@ class SqueezeBreakoutStrategy_SOL_4H:
         return "HOLD"
 
 
+class ContinuousTrendRider_XRP_1M:
+    """Continuous Trend Rider strategy for XRPUSDT 1m."""
+
+    def __init__(self):
+        self.strategy_id = "continuous_trend_rider_xrp_1m"
+        self.ema_len = 5
+
+        # used by _run_strategy_loop for lookback calculation
+        self.ema_length = self.ema_len
+        self.squeeze_length = 0
+
+        print(f"Initialized: {self.strategy_id}")
+
+    def check_signal(self, df: pd.DataFrame) -> str:
+        log_detail(self.strategy_id, "--- Checking new candle ---")
+
+        df[f"EMA_{self.ema_len}"] = ema(df["close"], self.ema_len)
+
+        latest = df.iloc[-1]
+
+        is_bullish = latest["close"] > latest[f"EMA_{self.ema_len}"]
+        is_bearish = latest["close"] < latest[f"EMA_{self.ema_len}"]
+
+        log_detail(
+            self.strategy_id,
+            f"Close({latest['close']:.5f}) vs EMA({self.ema_len})({latest[f'EMA_{self.ema_len}']:.5f})",
+        )
+
+        if is_bullish:
+            log_detail(self.strategy_id, "BUY SIGNAL CONFIRMED")
+            return "BUY"
+
+        if is_bearish:
+            log_detail(self.strategy_id, "SELL SIGNAL CONFIRMED")
+            return "SELL"
+
+        log_detail(self.strategy_id, "HOLD: Price exactly on EMA")
+        return "HOLD"
+
+
 # Mapping from strategy ids to their class implementations
 STRATEGY_CLASSES = {
     "squeeze_breakout_btc_4h": SqueezeBreakoutStrategy_BTC_4H,
@@ -408,6 +449,7 @@ STRATEGY_CLASSES = {
     "squeeze_breakout_doge_1h": SqueezeBreakoutStrategy_DOGE_1H,
     "squeeze_breakout_sol_4h": SqueezeBreakoutStrategy_SOL_4H,
     "hyper_frequency_ema_cross_btc_1m": HyperFrequencyEMAStrategy,
+    "continuous_trend_rider_xrp_1m": ContinuousTrendRider_XRP_1M,
 }
 
 def _get_client(user_id: int) -> Client:
@@ -505,6 +547,7 @@ async def _run_strategy_loop(
         "squeeze_breakout_doge_1h": ("DOGEUSDT", Client.KLINE_INTERVAL_1HOUR),
         "squeeze_breakout_sol_4h": ("SOLUSDT", Client.KLINE_INTERVAL_4HOUR),
         "hyper_frequency_ema_cross_btc_1m": ("BTCUSDT", Client.KLINE_INTERVAL_1MINUTE),
+        "continuous_trend_rider_xrp_1m": ("XRPUSDT", Client.KLINE_INTERVAL_1MINUTE),
     }
     symbol, interval = symbol_map[strategy_id]
     limit = strategy.ema_length + strategy.squeeze_length + 50
