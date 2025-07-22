@@ -54,10 +54,7 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
   const handleTestAction = (action) => {
     if (!symbol || !amount) return;
     const endpoint = action === 'buy' ? '/strategy/test/buy' : '/strategy/test/sell';
-    const payload =
-      action === 'buy'
-        ? { symbol, amount: parseFloat(amount) }
-        : { symbol, quantity: parseFloat(amount) };
+    const payload = { symbol, amount: parseFloat(amount) };
 
     fetch(`http://localhost:8000${endpoint}`, {
       method: 'POST',
