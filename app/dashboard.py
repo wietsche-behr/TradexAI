@@ -23,8 +23,9 @@ def _compute_metrics(trades):
     durations = []
 
     for trade in trades_sorted:
-        symbol = trade.get("symbol")
-        side = (trade.get("side") or "").upper()
+        # handle potential whitespace or mixed case values from the database
+        symbol = (trade.get("symbol") or "").strip()
+        side = (trade.get("side") or "").strip().upper()
         quantity = float(trade.get("quantity", 0))
         price = float(trade.get("price", 0))
         trade_id = trade.get("id")
