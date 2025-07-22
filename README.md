@@ -12,7 +12,7 @@ This project contains a simple FastAPI backend for a crypto and stock trading bo
    the dependencies. The file pins `numpy<2.0` for compatibility and includes
    basic indicator helpers so no external `pandas-ta` package is required.
 2. Create a project in [Supabase](https://supabase.com) and create the following tables:
-   - `users` and `trades` matching the models in `app/schemas.py`.
+   - `users` and `trades` matching the models in `app/schemas.py` (be sure the `users` table includes a `total_profit` numeric column with a default of `0`).
    - `user_settings` using the SQL below.
 3. Grab your project API URL and service role key from the Supabase dashboard and set them as environment variables:
    ```bash
@@ -56,4 +56,10 @@ create table if not exists user_strategy_runs (
 create unique index if not exists user_strategy_active_idx
   on user_strategy_runs(user_id, strategy_id)
   where is_running is true;
+```
+
+To store the cumulative profit for each user, add a `total_profit` column to the `users` table:
+
+```sql
+alter table users add column if not exists total_profit numeric default 0;
 ```

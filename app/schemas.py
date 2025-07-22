@@ -25,6 +25,7 @@ class UserCreate(UserBase):
 class User(UserBase):
     id: int
     status: str
+    total_profit: float = 0.0
     trades: List[Trade] = []
 
     model_config = ConfigDict(from_attributes=True)
