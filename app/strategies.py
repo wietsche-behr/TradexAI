@@ -492,7 +492,7 @@ def test_buy(
 @router.post("/strategy/test/sell")
 def test_sell(
     symbol: str = Body(..., embed=True),
-    quantity: float = Body(..., embed=True),
+    amount: float = Body(..., embed=True),
     current_user: dict = Depends(auth.get_current_user),
 ):
     client = _get_client(current_user["id"])
@@ -502,19 +502,19 @@ def test_sell(
             symbol=symbol.upper(),
             side="SELL",
             type="MARKET",
-            quantity=quantity,
+            quoteOrderQty=amount,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         current_user_ctx.reset(token)
-    qty = order.get("executedQty", quantity)
+    qty = order.get("executedQty", amount)
     _log("manual", f"SELL {symbol.upper()} qty {qty}", "trade")
     logs = GLOBAL_TRADE_LOGS.setdefault(current_user["id"], [])
     logs.append(f"SELL {symbol.upper()} qty {qty}")
     if len(logs) > 1000:
         logs.pop(0)
-    _log("manual", f"Placed market SELL order for {symbol.upper()} qty {quantity}")
+    _log("manual", f"Placed market SELL order for {symbol.upper()} amount {amount}")
     return {"sell": order}
 
 
@@ -620,7 +620,7 @@ async def _run_strategy_loop(
                         symbol=symbol,
                         side="SELL",
                         type="MARKET",
-                        quantity=amount or 1,
+                        quoteOrderQty=amount or 1,
                     )
                     executed_qty = float(order.get("executedQty", amount or 1))
                 except Exception as exc:
