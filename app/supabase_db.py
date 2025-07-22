@@ -60,7 +60,12 @@ class SupabaseDB:
 
     # User operations
     def create_user(self, username: str, hashed_password: str, status: str = "Pending"):
-        data = {"username": username, "hashed_password": hashed_password, "status": status}
+        data = {
+            "username": username,
+            "hashed_password": hashed_password,
+            "status": status,
+            "total_profit": 0.0,
+        }
         res = self._request("POST", "/users", data=data)
         return res[0] if res else None
 
@@ -80,6 +85,12 @@ class SupabaseDB:
     def update_user_status(self, user_id: int, status: str):
         params = {"id": f"eq.{user_id}"}
         data = {"status": status}
+        res = self._request("PATCH", "/users", params=params, data=data)
+        return res[0] if res else None
+
+    def update_user_total_profit(self, user_id: int, total_profit: float):
+        params = {"id": f"eq.{user_id}"}
+        data = {"total_profit": total_profit}
         res = self._request("PATCH", "/users", params=params, data=data)
         return res[0] if res else None
 

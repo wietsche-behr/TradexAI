@@ -9,7 +9,7 @@ FEE_RATE = 0.001
 router = APIRouter()
 
 
-def _compute_metrics(trades):
+def _compute_metrics(user_id: int, trades):
     # sort trades to ensure calculations happen chronologically
     trades_sorted = sorted(trades or [], key=lambda t: t.get("id", 0))
 
@@ -104,7 +104,7 @@ def _compute_metrics(trades):
     active_trades = sum(len(v) for v in open_positions.values())
     win_rate = (win_count / closed_count * 100) if closed_count else 0.0
     avg_duration = sum(durations) / len(durations) if durations else 0.0
-    return {
+    metrics = {
         "stats": {
             "total_profit": total_profit,
             "win_rate": win_rate,
@@ -115,8 +115,16 @@ def _compute_metrics(trades):
         "chart_data": chart_data,
     }
 
+    # Persist total profit on the user record
+    try:
+        db.update_user_total_profit(user_id, total_profit)
+    except Exception:
+        pass
+
+    return metrics
+
 
 @router.get("/dashboard")
 def get_dashboard_data(current_user: dict = Depends(auth.get_current_user)):
     trades = db.get_trades(current_user["id"], skip=0, limit=1000) or []
-    return _compute_metrics(trades)
+    return _compute_metrics(current_user["id"], trades)
