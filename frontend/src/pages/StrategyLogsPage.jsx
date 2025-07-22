@@ -53,13 +53,13 @@ export default function StrategyLogsPage({ strategy, token, onBack }) {
           </button>
         </div>
         {tab === 'detail' ? (
-          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
+          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto text-gray-800 dark:text-gray-200">
             {detailLogs.map((l, i) => (
               <div key={i}>{l}</div>
             ))}
           </div>
         ) : (
-          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
+          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto text-gray-800 dark:text-gray-200">
             {tradeLogs.map((t, i) => (
               <div key={i}>{t}</div>
             ))}

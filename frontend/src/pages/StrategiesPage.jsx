@@ -218,7 +218,7 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
         </GlassCard>
         <GlassCard className="space-y-4">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Trade Logs</h3>
-          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
+          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto text-gray-800 dark:text-gray-200">
             {tradeLogs.map((l, i) => (
               <div key={i}>{l}</div>
             ))}
