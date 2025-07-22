@@ -550,6 +550,7 @@ async def _run_strategy_loop(
         "continuous_trend_rider_xrp_1m": ("XRPUSDT", Client.KLINE_INTERVAL_1MINUTE),
     }
     symbol, interval = symbol_map[strategy_id]
+    strategy_name = AVAILABLE_STRATEGIES.get(strategy_id, strategy_id)
     limit = strategy.ema_length + strategy.squeeze_length + 50
     key = (user_id, strategy_id)
     token = current_user_ctx.set(user_id)
@@ -587,7 +588,9 @@ async def _run_strategy_loop(
                     f"BUY {symbol} @ {price}"
                 )
                 logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
-                logs.append(f"BUY {symbol} @ {price}")
+                logs.append(
+                    f"{strategy_name}: BUY {symbol} @ {price}"
+                )
                 if len(logs) > 1000:
                     logs.pop(0)
             elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
@@ -602,7 +605,9 @@ async def _run_strategy_loop(
                 profit = price - entry
                 pct = (profit / entry) * 100 if entry else 0.0
                 logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
-                logs.append(f"SELL {symbol} @ {price} ({pct:.2f}% profit)")
+                logs.append(
+                    f"{strategy_name}: SELL {symbol} @ {price} ({pct:.2f}% profit)"
+                )
                 if len(logs) > 1000:
                     logs.pop(0)
                 log_detail(

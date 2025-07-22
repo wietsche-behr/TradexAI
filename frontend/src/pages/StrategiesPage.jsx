@@ -218,10 +218,24 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
         </GlassCard>
         <GlassCard className="space-y-4">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Trade Logs</h3>
-          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto text-gray-800 dark:text-gray-200">
-            {tradeLogs.map((l, i) => (
-              <div key={i}>{l}</div>
-            ))}
+          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
+            {tradeLogs.map((l, i) => {
+              let color = 'text-gray-800 dark:text-gray-200';
+              if (l.includes('SELL')) {
+                const m = l.match(/([-\d.]+)% profit/);
+                if (m) {
+                  const pct = parseFloat(m[1]);
+                  color = pct >= 0 ? 'text-green-600' : 'text-red-600';
+                }
+              } else if (l.includes('BUY')) {
+                color = 'text-blue-600';
+              }
+              return (
+                <div key={i} className={color}>
+                  {l}
+                </div>
+              );
+            })}
           </div>
         </GlassCard>
       </div>
