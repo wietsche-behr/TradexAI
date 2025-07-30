@@ -10,6 +10,39 @@ from . import auth
 from .supabase_db import db
 from . import crud, schemas
 
+
+def _extract_order_details(order: dict) -> tuple[float, float, float]:
+    """
+    Extracts the volume-weighted average price, total executed quantity, 
+    and total commission from an order's 'fills' data. This is more accurate
+    than the top-level order fields, especially for large market orders.
+    """
+    fills = order.get("fills", [])
+    if not fills:
+        # Fallback for paper trading or if fills are not available in the response
+        price = float(order.get("cummulativeQuoteQty", 0)) / float(order.get("executedQty", 1))
+        qty = float(order.get("executedQty", 0))
+        # Commission data isn't available in this fallback, so we return 0
+        return price, qty, 0.0
+
+    total_value = 0
+    total_quantity = 0
+    total_commission = 0
+
+    # NOTE: This assumes commission is paid in USDT. A more complex system
+    # would be needed to handle commissions paid in other assets like BNB.
+    for fill in fills:
+        price = float(fill['price'])
+        qty = float(fill['qty'])
+        commission = float(fill['commission'])
+
+        total_value += price * qty
+        total_quantity += qty
+        total_commission += commission
+
+    avg_price = total_value / total_quantity if total_quantity > 0 else 0
+    return avg_price, total_quantity, total_commission
+
 router = APIRouter()
 
 # Mapping of available strategies to human-friendly names
@@ -98,6 +131,7 @@ RUNNING_TASKS: dict[tuple[int, str], dict] = {}
 class Position:
     price: float
     quantity: float
+    commission: float
 
 OPEN_POSITION: dict[tuple[int, str], Position | None] = {}
 
@@ -595,116 +629,81 @@ async def _run_strategy_loop(
     if trade_amount < min_notional:
         trade_amount = min_notional
         log_detail(strategy_id, f"Adjusted trade amount to MIN_NOTIONAL {min_notional}")
+
     amount = trade_amount
     limit = strategy.ema_length + strategy.squeeze_length + 50
     key = (user_id, strategy_id)
     token = current_user_ctx.set(user_id)
+
     while True:
         try:
             klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
             if not klines:
                 await asyncio.sleep(10)
                 continue
+
             df = pd.DataFrame(
                 klines,
                 columns=[
-                    "open_time",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                    "close_time",
-                    "quote_asset_volume",
-                    "number_of_trades",
-                    "taker_buy_base",
-                    "taker_buy_quote",
-                    "ignore",
+                    "open_time", "open", "high", "low", "close", "volume",
+                    "close_time", "quote_asset_volume", "number_of_trades",
+                    "taker_buy_base", "taker_buy_quote", "ignore",
                 ],
             )
             df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].astype(float)
 
             signal = strategy.check_signal(df)
-            price = float(df.iloc[-1]["close"])
             position = OPEN_POSITION.get(key)
+
             if signal == "BUY" and position is None:
                 try:
                     order = client.create_order(
-                        symbol=symbol,
-                        side="BUY",
-                        type="MARKET",
-                        quoteOrderQty=amount,
+                        symbol=symbol, side="BUY", type="MARKET", quoteOrderQty=amount
                     )
-                    executed_qty = float(order.get("executedQty", amount))
+                    entry_price, executed_qty, entry_commission = _extract_order_details(order)
                 except Exception as exc:
                     log_detail(strategy_id, f"ERROR placing BUY order: {exc}")
                     await asyncio.sleep(5)
                     continue
-                OPEN_POSITION[key] = Position(price=price, quantity=executed_qty)
-                log_detail(strategy_id, f"Entering trade at {price}")
-                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
-                    f"BUY {symbol} @ {price}"
-                )
-                logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
-                logs.append(f"{strategy_name}: BUY {symbol} @ {price}")
-                if len(logs) > 1000:
-                    logs.pop(0)
-                crud.create_trade(
-                    schemas.TradeCreate(
-                        symbol=symbol,
-                        side="BUY",
-                        quantity=executed_qty,
-                        price=price,
-                    ),
-                    user_id,
-                )
+
+                OPEN_POSITION[key] = Position(price=entry_price, quantity=executed_qty, commission=entry_commission)
+                log_detail(strategy_id, f"Entering trade at {entry_price:.5f} with qty {executed_qty}")
+
             elif signal == "SELL" and position is not None:
-                entry = position.price
                 try:
                     order = client.create_order(
-                        symbol=symbol,
-                        side="SELL",
-                        type="MARKET",
-                        quantity=position.quantity,
+                        symbol=symbol, side="SELL", type="MARKET", quantity=position.quantity
                     )
-                    executed_qty = float(order.get("executedQty", position.quantity))
+                    exit_price, _, exit_commission = _extract_order_details(order)
                 except Exception as exc:
                     log_detail(strategy_id, f"ERROR placing SELL order: {exc}")
                     await asyncio.sleep(5)
                     continue
+
+                trade_log_data = schemas.CompletedTradeCreate(
+                    strategy_id=strategy_id,
+                    symbol=symbol,
+                    entry_price=position.price,
+                    exit_price=exit_price,
+                    quantity=position.quantity,
+                    commission_entry=position.commission,
+                    commission_exit=exit_commission,
+                )
+                crud.create_completed_trade(trade_log_data, user_id)
+
                 OPEN_POSITION[key] = None
-                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
-                    f"SELL {symbol} @ {price}"
-                )
-                TRADE_HISTORY.setdefault(key, []).append(
-                    {"entry_price": entry, "exit_price": price}
-                )
-                profit = price - entry
-                pct = (profit / entry) * 100 if entry else 0.0
-                logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
-                logs.append(
-                    f"{strategy_name}: SELL {symbol} @ {price} ({pct:.2f}% profit)"
-                )
-                if len(logs) > 1000:
-                    logs.pop(0)
-                log_detail(
-                    strategy_id,
-                    f"Exiting trade at {price} (profit {profit:.2f})",
-                )
-                crud.create_trade(
-                    schemas.TradeCreate(
-                        symbol=symbol,
-                        side="SELL",
-                        quantity=executed_qty,
-                        price=price,
-                    ),
-                    user_id,
-                )
+
+                profit = (exit_price - position.price) * position.quantity - position.commission - exit_commission
+                log_detail(strategy_id, f"Exiting trade at {exit_price:.5f}. Profit: {profit:.4f}")
+
         except asyncio.CancelledError:
             break
         except Exception as exc:
-            log_detail(strategy_id, f"ERROR: {exc}")
+            log_detail(strategy_id, f"ERROR in strategy loop: {exc}")
+            await asyncio.sleep(10)
+
         await asyncio.sleep(5)
+
     current_user_ctx.reset(token)
 
 
