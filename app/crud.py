@@ -6,6 +6,8 @@ from .dashboard import _compute_metrics
 
 def create_trade(trade: schemas.TradeCreate, user_id: int):
     data = trade.dict()
+    if "side" in data:
+        data["side"] = data["side"].lower()
     data["owner_id"] = user_id
     new_trade = db.create_trade(data)
     try:
@@ -31,6 +33,8 @@ def get_trades(owner_id: int, skip: int = 0, limit: int = 100):
 def update_trade(trade_id: int, trade: schemas.TradeCreate):
     existing = get_trade(trade_id)
     data = trade.dict()
+    if "side" in data:
+        data["side"] = data["side"].lower()
     updated = db.update_trade(trade_id, data)
     try:
         # update cached metrics after trade modifications
