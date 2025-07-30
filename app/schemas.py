@@ -64,3 +64,13 @@ class BotConfig(BotConfigBase):
     user_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompletedTradeCreate(BaseModel):
+    strategy_id: str
+    symbol: str
+    entry_price: float
+    exit_price: float
+    quantity: float
+    commission_entry: Optional[float] = None
+    commission_exit: Optional[float] = None

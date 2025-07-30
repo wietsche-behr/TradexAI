@@ -54,3 +54,35 @@ def delete_trade(trade_id: int):
     except Exception:
         pass
     return existing
+
+
+def create_completed_trade(trade_data: schemas.CompletedTradeCreate, user_id: int):
+    """
+    Inserts a new record into the completed_trades table and calculates profit.
+    """
+    try:
+        # Calculate profit before insertion, including commissions
+        profit = (trade_data.exit_price - trade_data.entry_price) * trade_data.quantity
+        if trade_data.commission_entry is not None:
+            profit -= trade_data.commission_entry
+        if trade_data.commission_exit is not None:
+            profit -= trade_data.commission_exit
+
+        response = db.table("completed_trades").insert({
+            "user_id": user_id,
+            "strategy_id": trade_data.strategy_id,
+            "symbol": trade_data.symbol,
+            "entry_price": trade_data.entry_price,
+            "exit_price": trade_data.exit_price,
+            "quantity": trade_data.quantity,
+            "commission_entry": trade_data.commission_entry,
+            "commission_exit": trade_data.commission_exit,
+            "profit": profit
+        }).execute()
+
+        if response.data:
+            return response.data[0]
+        return None
+    except Exception as e:
+        print(f"ERROR: Failed to create completed trade in Supabase: {e}")
+        return None
