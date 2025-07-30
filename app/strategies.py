@@ -473,6 +473,23 @@ def _get_client(user_id: int) -> Client:
     return Client(settings["binance_api_key"], settings["binance_api_secret"])
 
 
+def _get_min_notional(client: Client, symbol: str) -> float:
+    """Return the MIN_NOTIONAL filter for a symbol if available."""
+    try:
+        info = client.get_symbol_info(symbol)
+    except Exception:
+        return 0.0
+    if not info:
+        return 0.0
+    for f in info.get("filters", []):
+        if f.get("filterType") == "MIN_NOTIONAL":
+            try:
+                return float(f.get("minNotional", 0))
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
+
+
 @router.post("/strategy/test/buy")
 def test_buy(
     symbol: str = Body(..., embed=True),
@@ -480,6 +497,10 @@ def test_buy(
     current_user: dict = Depends(auth.get_current_user),
 ):
     client = _get_client(current_user["id"])
+    min_notional = _get_min_notional(client, symbol.upper())
+    if amount < min_notional:
+        amount = min_notional
+        _log("manual", f"Adjusted buy amount to MIN_NOTIONAL {min_notional}")
     token = current_user_ctx.set(current_user["id"])
     try:
         order = client.create_order(
@@ -509,6 +530,10 @@ def test_sell(
     current_user: dict = Depends(auth.get_current_user),
 ):
     client = _get_client(current_user["id"])
+    min_notional = _get_min_notional(client, symbol.upper())
+    if amount < min_notional:
+        amount = min_notional
+        _log("manual", f"Adjusted sell amount to MIN_NOTIONAL {min_notional}")
     token = current_user_ctx.set(current_user["id"])
     try:
         order = client.create_order(
@@ -565,6 +590,12 @@ async def _run_strategy_loop(
     }
     symbol, interval = symbol_map[strategy_id]
     strategy_name = AVAILABLE_STRATEGIES.get(strategy_id, strategy_id)
+    min_notional = _get_min_notional(client, symbol)
+    trade_amount = amount if amount is not None else min_notional
+    if trade_amount < min_notional:
+        trade_amount = min_notional
+        log_detail(strategy_id, f"Adjusted trade amount to MIN_NOTIONAL {min_notional}")
+    amount = trade_amount
     limit = strategy.ema_length + strategy.squeeze_length + 50
     key = (user_id, strategy_id)
     token = current_user_ctx.set(user_id)
@@ -602,9 +633,9 @@ async def _run_strategy_loop(
                         symbol=symbol,
                         side="BUY",
                         type="MARKET",
-                        quoteOrderQty=amount or 1,
+                        quoteOrderQty=amount,
                     )
-                    executed_qty = float(order.get("executedQty", amount or 1))
+                    executed_qty = float(order.get("executedQty", amount))
                 except Exception as exc:
                     log_detail(strategy_id, f"ERROR placing BUY order: {exc}")
                     await asyncio.sleep(5)
