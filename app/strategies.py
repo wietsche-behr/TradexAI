@@ -4,6 +4,7 @@ import pandas as pd
 import asyncio
 from datetime import datetime
 from contextvars import ContextVar
+from dataclasses import dataclass
 
 from . import auth
 from .supabase_db import db
@@ -88,7 +89,19 @@ def atr(df: pd.DataFrame, length: int) -> pd.Series:
 # --- RUNNING STRATEGIES ---
 # keep track of running background tasks and trade history
 RUNNING_TASKS: dict[tuple[int, str], dict] = {}
-OPEN_POSITION: dict[tuple[int, str], float | None] = {}
+
+# track the currently open position for each user/strategy.  None indicates no
+# active trade.  When a position is open, store both the entry price and the
+# executed quantity so that the strategy can exit exactly the amount it bought
+# without affecting other strategies.
+@dataclass
+class Position:
+    price: float
+    quantity: float
+
+OPEN_POSITION: dict[tuple[int, str], Position | None] = {}
+
+# history of completed trades for profit reporting
 TRADE_HISTORY: dict[tuple[int, str], list[dict[str, float]]] = {}
 # aggregated logs of buy/sell events for display on strategy page
 GLOBAL_TRADE_LOGS: dict[int, list[str]] = {}
@@ -582,7 +595,8 @@ async def _run_strategy_loop(
 
             signal = strategy.check_signal(df)
             price = float(df.iloc[-1]["close"])
-            if signal == "BUY" and OPEN_POSITION.get(key) is None:
+            position = OPEN_POSITION.get(key)
+            if signal == "BUY" and position is None:
                 try:
                     order = client.create_order(
                         symbol=symbol,
@@ -595,7 +609,7 @@ async def _run_strategy_loop(
                     log_detail(strategy_id, f"ERROR placing BUY order: {exc}")
                     await asyncio.sleep(5)
                     continue
-                OPEN_POSITION[key] = price
+                OPEN_POSITION[key] = Position(price=price, quantity=executed_qty)
                 log_detail(strategy_id, f"Entering trade at {price}")
                 STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
                     f"BUY {symbol} @ {price}"
@@ -613,16 +627,16 @@ async def _run_strategy_loop(
                     ),
                     user_id,
                 )
-            elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
-                entry = OPEN_POSITION[key]
+            elif signal == "SELL" and position is not None:
+                entry = position.price
                 try:
                     order = client.create_order(
                         symbol=symbol,
                         side="SELL",
                         type="MARKET",
-                        quoteOrderQty=amount or 1,
+                        quantity=position.quantity,
                     )
-                    executed_qty = float(order.get("executedQty", amount or 1))
+                    executed_qty = float(order.get("executedQty", position.quantity))
                 except Exception as exc:
                     log_detail(strategy_id, f"ERROR placing SELL order: {exc}")
                     await asyncio.sleep(5)
