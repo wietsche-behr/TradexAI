@@ -58,6 +58,7 @@ const WickShape = ({ x, y, width, height, payload }) => {
 const intervalMap = { '15M': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' };
 
 export default function ChartsPage({ theme }) {
+  const pairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT'];
   const [activePair, setActivePair] = useState('BTC/USDT');
   const [activeInterval, setActiveInterval] = useState('1H');
   const [chartType, setChartType] = useState('line');
@@ -153,16 +154,16 @@ export default function ChartsPage({ theme }) {
     <main className="p-4 sm:p-6 lg:p-8">
       <GlassCard className="mb-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center space-x-2">
-            {['BTC/USDT', 'ETH/USDT', 'SOL/USDT'].map(pair => (
-              <button
-                key={pair}
-                onClick={() => setActivePair(pair)}
-                className={`px-4 py-2 text-sm font-semibold rounded-full transition ${activePair === pair ? 'bg-cyan-500/30 text-cyan-400' : 'hover:bg-black/5 dark:hover:bg-white/10 text-gray-600 dark:text-gray-300'}`}
-              >
-                {pair}
-              </button>
-            ))}
+          <div>
+            <select
+              value={activePair}
+              onChange={(e) => setActivePair(e.target.value)}
+              className="px-4 py-2 text-sm font-semibold rounded-md bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-300"
+            >
+              {pairs.map((pair) => (
+                <option key={pair} value={pair}>{pair}</option>
+              ))}
+            </select>
           </div>
           <MarketInfo data={currentMarketData} />
         </div>
