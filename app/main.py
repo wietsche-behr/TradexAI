@@ -12,6 +12,7 @@ from . import (
     assets,
     dashboard,
     bot,
+    market,
 )
 
 app = FastAPI(title="Tradex API")
@@ -34,6 +35,7 @@ app.include_router(strategies.router)
 app.include_router(assets.router)
 app.include_router(dashboard.router)
 app.include_router(bot.router)
+app.include_router(market.router)
 
 
 
@@ -84,12 +86,3 @@ def delete_trade(trade_id: int, current_user: dict = Depends(auth.get_current_us
     return crud.delete_trade(trade_id)
 
 
-@app.get("/market/{symbol}")
-def get_market(symbol: str):
-    cached = cache.get_cached_market_data(symbol)
-    if cached:
-        return {"symbol": symbol, "data": cached.decode()}
-    # placeholder for real market data fetch
-    data = "sample data"
-    cache.cache_market_data(symbol, data)
-    return {"symbol": symbol, "data": data}
