@@ -89,6 +89,15 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           >
             Charts
           </a>
+          <a
+            href="#"
+            onClick={() => setPage('manual')}
+            className={`${
+              page === 'manual' ? 'text-cyan-600 dark:text-cyan-400' : ''
+            } hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors`}
+          >
+            Manual Trading
+          </a>
         </div>
       </nav>
       <div className="flex items-center space-x-4">
