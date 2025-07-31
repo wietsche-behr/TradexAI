@@ -12,6 +12,7 @@ from . import (
     assets,
     dashboard,
     bot,
+    manual_trade,
 )
 
 app = FastAPI(title="Tradex API")
@@ -34,6 +35,7 @@ app.include_router(strategies.router)
 app.include_router(assets.router)
 app.include_router(dashboard.router)
 app.include_router(bot.router)
+app.include_router(manual_trade.router)
 
 
 
