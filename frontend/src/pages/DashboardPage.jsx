@@ -21,7 +21,7 @@ const StatCard = ({ icon, title, value, change, changeType }) => {
         <div className="p-3 bg-black/5 dark:bg-white/10 rounded-full border border-black/10 dark:border-white/20">{icon}</div>
         <div>
           <p className="text-gray-600 dark:text-gray-300 text-sm">{title}</p>
-          <p className="text-2xl font-semibold text-gray-800 dark:text-white">{value}</p>
+          <p className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-white">{value}</p>
           {change && <p className={`text-sm ${changeColor}`}>{change}</p>}
         </div>
       </div>
@@ -36,7 +36,7 @@ const MainChart = ({ theme, data }) => {
     <GlassCard className="col-span-12 lg:col-span-8 h-[450px] flex flex-col">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Performance Overview</h3>
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">Performance Overview</h3>
           <p className="text-gray-600 dark:text-gray-400">Last 24 hours</p>
         </div>
         <div className="flex space-x-2">
@@ -103,7 +103,7 @@ const BotControl = ({ token }) => {
   return (
     <GlassCard className="col-span-12 lg:col-span-4 h-full flex flex-col justify-between">
       <div>
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Bot Control</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white mb-4">Bot Control</h3>
         <div className="flex items-center justify-between mb-4">
           <span className="text-gray-600 dark:text-gray-300">Status</span>
           <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${isBotActive ? 'bg-green-500/30 text-green-300' : 'bg-red-500/30 text-red-300'}`}>
@@ -131,7 +131,7 @@ const BotControl = ({ token }) => {
 
 const TradeHistoryTable = ({ tradeHistory }) => (
   <GlassCard className="col-span-12">
-    <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Trade History</h3>
+    <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white mb-4">Trade History</h3>
     <div className="overflow-x-auto">
       <table className="w-full text-left text-gray-600 dark:text-gray-300">
         <thead className="border-b border-gray-400/20 dark:border-white/20">

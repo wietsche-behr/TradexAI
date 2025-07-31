@@ -37,7 +37,7 @@ export default function LogModal({ strategy, token, onClose }) {
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <GlassCard className="w-full max-w-4xl h-[80vh] flex flex-col">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Logs: {strategy.name}</h2>
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-white">Logs: {strategy.name}</h2>
           <button onClick={onClose} className="p-2 rounded-full text-gray-800 dark:text-white hover:bg-black/10 dark:hover:bg-white/20">✕</button>
         </div>
         <div className="flex border-b border-gray-400/20 dark:border-white/20 mb-4">

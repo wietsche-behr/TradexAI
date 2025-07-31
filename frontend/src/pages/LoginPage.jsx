@@ -31,7 +31,7 @@ export default function LoginPage({ onLogin, theme, goToRegister }) {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-8 rounded shadow-md w-full max-w-xs">
-        <h2 className="text-2xl mb-4 text-center text-gray-800 dark:text-gray-100">Login</h2>
+        <h2 className="text-xl sm:text-2xl mb-4 text-center text-gray-800 dark:text-gray-100">Login</h2>
         {error && <p className="text-red-500 mb-2">{error}</p>}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>

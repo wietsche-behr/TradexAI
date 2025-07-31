@@ -6,3 +6,19 @@ body {
   margin: 0;
   font-family: system-ui, sans-serif;
 }
+
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  html {
+    font-size: 12px;
+  }
+}

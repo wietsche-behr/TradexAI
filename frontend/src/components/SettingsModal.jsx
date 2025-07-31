@@ -44,7 +44,7 @@ export default function SettingsModal({ visible, onClose, token }) {
   return (
     <div className={`fixed inset-0 flex items-center justify-center bg-black/50 ${show}`}>
       <div className="bg-white dark:bg-gray-800 p-6 rounded shadow w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Settings</h2>
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-gray-800 dark:text-white">Settings</h2>
         <div className="mb-3">
           <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Binance API Key</label>
           <input

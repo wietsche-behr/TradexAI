@@ -42,7 +42,7 @@ export default function UserManagementPage() {
   return (
     <main className="p-4 sm:p-6 lg:p-8">
       <div className="flex justify-between items-center mb-6 px-2">
-        <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">User Administration</h2>
+        <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-white">User Administration</h2>
         <div className="relative">
           <input
             type="text"
@@ -56,7 +56,7 @@ export default function UserManagementPage() {
       </div>
 
       <GlassCard className="mb-8">
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Pending Approval ({pendingUsers.length})</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white mb-4">Pending Approval ({pendingUsers.length})</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-gray-600 dark:text-gray-300">
             <thead className="border-b border-gray-400/20 dark:border-white/20">
@@ -93,7 +93,7 @@ export default function UserManagementPage() {
       </GlassCard>
 
       <GlassCard>
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">User Management</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white mb-4">User Management</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-gray-600 dark:text-gray-300">
             <thead className="border-b border-gray-400/20 dark:border-white/20">
