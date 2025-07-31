@@ -8,7 +8,6 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
-venv/
 build/
 develop-eggs/
 dist/
@@ -68,5 +67,5 @@ poetry.lock
 *.log
 
 # Local virtualenv
-venv/
+
 
