@@ -1,15 +1,34 @@
 import os
 import redis
+from redis.exceptions import RedisError
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "")
 
-redis_client = redis.from_url(REDIS_URL)
+try:
+    redis_client = redis.from_url(REDIS_URL) if REDIS_URL else None
+    if redis_client:
+        redis_client.ping()
+except RedisError:
+    redis_client = None
 
-def cache_market_data(symbol: str, data: str, expire: int = 60):
+
+def cache_market_data(symbol: str, data: str, expire: int = 60) -> None:
+    """Store market data in Redis if available."""
+    if not redis_client:
+        return
     key = f"market:{symbol}"
-    redis_client.set(key, data, ex=expire)
+    try:
+        redis_client.set(key, data, ex=expire)
+    except RedisError:
+        pass
 
 
 def get_cached_market_data(symbol: str):
+    """Retrieve cached market data if Redis is available."""
+    if not redis_client:
+        return None
     key = f"market:{symbol}"
-    return redis_client.get(key)
+    try:
+        return redis_client.get(key)
+    except RedisError:
+        return None
