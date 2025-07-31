@@ -6,6 +6,11 @@ class TradeBase(BaseModel):
     side: str
     quantity: float
     price: float
+    # Optional fields used when a trade is created programmatically by a
+    # strategy.  These map directly to columns in the ``trades`` table.
+    strategy_id: Optional[str] = None
+    status: Optional[str] = None
+    related_trade_id: Optional[int] = None
 
 class TradeCreate(TradeBase):
     pass
@@ -64,3 +69,13 @@ class BotConfig(BotConfigBase):
     user_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompletedTradeCreate(BaseModel):
+    strategy_id: str
+    symbol: str
+    entry_price: float
+    exit_price: float
+    quantity: float
+    commission_entry: Optional[float] = None
+    commission_exit: Optional[float] = None

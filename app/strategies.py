@@ -4,10 +4,44 @@ import pandas as pd
 import asyncio
 from datetime import datetime
 from contextvars import ContextVar
+from dataclasses import dataclass
 
 from . import auth
 from .supabase_db import db
 from . import crud, schemas
+
+
+def _extract_order_details(order: dict) -> tuple[float, float, float]:
+    """
+    Extracts the volume-weighted average price, total executed quantity, 
+    and total commission from an order's 'fills' data. This is more accurate
+    than the top-level order fields, especially for large market orders.
+    """
+    fills = order.get("fills", [])
+    if not fills:
+        # Fallback for paper trading or if fills are not available in the response
+        price = float(order.get("cummulativeQuoteQty", 0)) / float(order.get("executedQty", 1))
+        qty = float(order.get("executedQty", 0))
+        # Commission data isn't available in this fallback, so we return 0
+        return price, qty, 0.0
+
+    total_value = 0
+    total_quantity = 0
+    total_commission = 0
+
+    # NOTE: This assumes commission is paid in USDT. A more complex system
+    # would be needed to handle commissions paid in other assets like BNB.
+    for fill in fills:
+        price = float(fill['price'])
+        qty = float(fill['qty'])
+        commission = float(fill['commission'])
+
+        total_value += price * qty
+        total_quantity += qty
+        total_commission += commission
+
+    avg_price = total_value / total_quantity if total_quantity > 0 else 0
+    return avg_price, total_quantity, total_commission
 
 router = APIRouter()
 
@@ -88,7 +122,21 @@ def atr(df: pd.DataFrame, length: int) -> pd.Series:
 # --- RUNNING STRATEGIES ---
 # keep track of running background tasks and trade history
 RUNNING_TASKS: dict[tuple[int, str], dict] = {}
-OPEN_POSITION: dict[tuple[int, str], float | None] = {}
+
+# track the currently open position for each user/strategy.  None indicates no
+# active trade.  When a position is open, store both the entry price and the
+# executed quantity so that the strategy can exit exactly the amount it bought
+# without affecting other strategies.
+@dataclass
+class Position:
+    price: float
+    quantity: float
+    commission: float
+    trade_id: int | None = None
+
+OPEN_POSITION: dict[tuple[int, str], Position | None] = {}
+
+# history of completed trades for profit reporting
 TRADE_HISTORY: dict[tuple[int, str], list[dict[str, float]]] = {}
 # aggregated logs of buy/sell events for display on strategy page
 GLOBAL_TRADE_LOGS: dict[int, list[str]] = {}
@@ -460,6 +508,23 @@ def _get_client(user_id: int) -> Client:
     return Client(settings["binance_api_key"], settings["binance_api_secret"])
 
 
+def _get_min_notional(client: Client, symbol: str) -> float:
+    """Return the MIN_NOTIONAL filter for a symbol if available."""
+    try:
+        info = client.get_symbol_info(symbol)
+    except Exception:
+        return 0.0
+    if not info:
+        return 0.0
+    for f in info.get("filters", []):
+        if f.get("filterType") == "MIN_NOTIONAL":
+            try:
+                return float(f.get("minNotional", 0))
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
+
+
 @router.post("/strategy/test/buy")
 def test_buy(
     symbol: str = Body(..., embed=True),
@@ -467,6 +532,10 @@ def test_buy(
     current_user: dict = Depends(auth.get_current_user),
 ):
     client = _get_client(current_user["id"])
+    min_notional = _get_min_notional(client, symbol.upper())
+    if amount < min_notional:
+        amount = min_notional
+        _log("manual", f"Adjusted buy amount to MIN_NOTIONAL {min_notional}")
     token = current_user_ctx.set(current_user["id"])
     try:
         order = client.create_order(
@@ -496,6 +565,10 @@ def test_sell(
     current_user: dict = Depends(auth.get_current_user),
 ):
     client = _get_client(current_user["id"])
+    min_notional = _get_min_notional(client, symbol.upper())
+    if amount < min_notional:
+        amount = min_notional
+        _log("manual", f"Adjusted sell amount to MIN_NOTIONAL {min_notional}")
     token = current_user_ctx.set(current_user["id"])
     try:
         order = client.create_order(
@@ -551,115 +624,144 @@ async def _run_strategy_loop(
         "continuous_trend_rider_xrp_1m": ("XRPUSDT", Client.KLINE_INTERVAL_1MINUTE),
     }
     symbol, interval = symbol_map[strategy_id]
-    strategy_name = AVAILABLE_STRATEGIES.get(strategy_id, strategy_id)
+    min_notional = _get_min_notional(client, symbol)
+    trade_amount = amount if amount is not None else min_notional
+    if trade_amount < min_notional:
+        trade_amount = min_notional
+        log_detail(strategy_id, f"Adjusted trade amount to MIN_NOTIONAL {min_notional}")
+
+    amount = trade_amount
     limit = strategy.ema_length + strategy.squeeze_length + 50
     key = (user_id, strategy_id)
     token = current_user_ctx.set(user_id)
+
     while True:
         try:
             klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
             if not klines:
                 await asyncio.sleep(10)
                 continue
+
             df = pd.DataFrame(
                 klines,
                 columns=[
-                    "open_time",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                    "close_time",
-                    "quote_asset_volume",
-                    "number_of_trades",
-                    "taker_buy_base",
-                    "taker_buy_quote",
-                    "ignore",
+                    "open_time", "open", "high", "low", "close", "volume",
+                    "close_time", "quote_asset_volume", "number_of_trades",
+                    "taker_buy_base", "taker_buy_quote", "ignore",
                 ],
             )
             df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].astype(float)
 
             signal = strategy.check_signal(df)
-            price = float(df.iloc[-1]["close"])
-            if signal == "BUY" and OPEN_POSITION.get(key) is None:
+            position = OPEN_POSITION.get(key)
+
+            if signal == "BUY" and position is None:
                 try:
                     order = client.create_order(
-                        symbol=symbol,
-                        side="BUY",
-                        type="MARKET",
-                        quoteOrderQty=amount or 1,
+                        symbol=symbol, side="BUY", type="MARKET", quoteOrderQty=amount
                     )
-                    executed_qty = float(order.get("executedQty", amount or 1))
+                    entry_price, executed_qty, entry_commission = _extract_order_details(order)
                 except Exception as exc:
                     log_detail(strategy_id, f"ERROR placing BUY order: {exc}")
                     await asyncio.sleep(5)
                     continue
-                OPEN_POSITION[key] = price
-                log_detail(strategy_id, f"Entering trade at {price}")
-                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
-                    f"BUY {symbol} @ {price}"
-                )
-                logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
-                logs.append(f"{strategy_name}: BUY {symbol} @ {price}")
-                if len(logs) > 1000:
-                    logs.pop(0)
-                crud.create_trade(
+
+                trade = crud.create_trade(
                     schemas.TradeCreate(
                         symbol=symbol,
                         side="BUY",
                         quantity=executed_qty,
-                        price=price,
+                        price=entry_price,
+                        strategy_id=strategy_id,
+                        status="open",
                     ),
                     user_id,
                 )
-            elif signal == "SELL" and OPEN_POSITION.get(key) is not None:
-                entry = OPEN_POSITION[key]
+                trade_id = trade.get("id") if trade else None
+                OPEN_POSITION[key] = Position(
+                    price=entry_price,
+                    quantity=executed_qty,
+                    commission=entry_commission,
+                    trade_id=trade_id,
+                )
+                # record trade log for the buy event
+                _log(strategy_id, f"BUY {symbol.upper()} qty {executed_qty}", "trade")
+                trade_logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
+                trade_logs.append(f"BUY {symbol.upper()} qty {executed_qty}")
+                if len(trade_logs) > 1000:
+                    trade_logs.pop(0)
+                log_detail(strategy_id, f"Entering trade at {entry_price:.5f} with qty {executed_qty}")
+
+            elif signal == "SELL" and position is not None:
                 try:
                     order = client.create_order(
-                        symbol=symbol,
-                        side="SELL",
-                        type="MARKET",
-                        quoteOrderQty=amount or 1,
+                        symbol=symbol, side="SELL", type="MARKET", quantity=position.quantity
                     )
-                    executed_qty = float(order.get("executedQty", amount or 1))
+                    exit_price, _, exit_commission = _extract_order_details(order)
                 except Exception as exc:
                     log_detail(strategy_id, f"ERROR placing SELL order: {exc}")
                     await asyncio.sleep(5)
                     continue
-                OPEN_POSITION[key] = None
-                STRATEGY_LOGS[_log_key(user_id, strategy_id)]["trade"].append(
-                    f"SELL {symbol} @ {price}"
-                )
-                TRADE_HISTORY.setdefault(key, []).append(
-                    {"entry_price": entry, "exit_price": price}
-                )
-                profit = price - entry
-                pct = (profit / entry) * 100 if entry else 0.0
-                logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
-                logs.append(
-                    f"{strategy_name}: SELL {symbol} @ {price} ({pct:.2f}% profit)"
-                )
-                if len(logs) > 1000:
-                    logs.pop(0)
-                log_detail(
-                    strategy_id,
-                    f"Exiting trade at {price} (profit {profit:.2f})",
-                )
-                crud.create_trade(
+
+                sell_trade = crud.create_trade(
                     schemas.TradeCreate(
                         symbol=symbol,
                         side="SELL",
-                        quantity=executed_qty,
-                        price=price,
+                        quantity=position.quantity,
+                        price=exit_price,
+                        strategy_id=strategy_id,
+                        status="closed",
+                        related_trade_id=position.trade_id,
                     ),
                     user_id,
                 )
+                sell_trade_id = sell_trade.get("id") if sell_trade else None
+
+                if position.trade_id:
+                    crud.update_trade(
+                        position.trade_id,
+                        schemas.TradeCreate(
+                            symbol=symbol,
+                            side="BUY",
+                            quantity=position.quantity,
+                            price=position.price,
+                            strategy_id=strategy_id,
+                            status="closed",
+                            related_trade_id=sell_trade_id,
+                        ),
+                    )
+
+                trade_log_data = schemas.CompletedTradeCreate(
+                    strategy_id=strategy_id,
+                    symbol=symbol,
+                    entry_price=position.price,
+                    exit_price=exit_price,
+                    quantity=position.quantity,
+                    commission_entry=position.commission,
+                    commission_exit=exit_commission,
+                )
+                crud.create_completed_trade(trade_log_data, user_id)
+
+                OPEN_POSITION[key] = None
+
+                # record trade log for the sell event
+                _log(strategy_id, f"SELL {symbol.upper()} qty {position.quantity}", "trade")
+                trade_logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
+                trade_logs.append(f"SELL {symbol.upper()} qty {position.quantity}")
+                if len(trade_logs) > 1000:
+                    trade_logs.pop(0)
+
+                profit = (exit_price - position.price) * position.quantity - position.commission - exit_commission
+                log_detail(strategy_id, f"Exiting trade at {exit_price:.5f}. Profit: {profit:.4f}")
+
         except asyncio.CancelledError:
             break
         except Exception as exc:
-            log_detail(strategy_id, f"ERROR: {exc}")
+            log_detail(strategy_id, f"ERROR in strategy loop: {exc}")
+            await asyncio.sleep(10)
+
         await asyncio.sleep(5)
+
     current_user_ctx.reset(token)
 
 
