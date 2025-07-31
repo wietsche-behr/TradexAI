@@ -112,6 +112,15 @@ class SupabaseDB:
         }
         return self._request("GET", "/trades", params=params)
 
+    def get_trade_summary(self, owner_id: int, skip: int = 0, limit: int = 100):
+        """Return rows from the ``trade_summary_view`` for a user."""
+        params = {
+            "owner_id": f"eq.{owner_id}",
+            "offset": skip,
+            "limit": limit,
+        }
+        return self._request("GET", "/trade_summary_view", params=params)
+
     def update_trade(self, trade_id: int, trade: dict):
         params = {"id": f"eq.{trade_id}"}
         res = self._request("PATCH", "/trades", params=params, data=trade)
