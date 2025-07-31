@@ -42,8 +42,8 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           {formatValue()}
         </button>
       </div>
-      <nav className="hidden md:flex flex-grow justify-center">
-        <div className="flex items-center space-x-6 bg-gray-500/10 dark:bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-gray-400/20 dark:border-white/20">
+      <nav className="hidden md:flex flex-grow justify-center overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-4 md:gap-6 bg-gray-500/10 dark:bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-gray-400/20 dark:border-white/20">
           <a
             href="#"
             onClick={() => setPage('dashboard')}
