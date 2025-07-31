@@ -65,7 +65,6 @@ export default function ChartsPage({ theme }) {
         borderVisible: false,
         scaleMargins: { top: 0, bottom: 0.3 },
       },
-      rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
       grid: {
         vertLines: { color: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' },
@@ -90,7 +89,6 @@ export default function ChartsPage({ theme }) {
     chart.priceScale('volume').applyOptions({
       scaleMargins: { top: 0.7, bottom: 0 },
       priceScaleId: '',
-      scaleMargins: { top: 0.8, bottom: 0 },
     });
     chartInstance.current = chart;
     lineSeries.current = lSeries;
