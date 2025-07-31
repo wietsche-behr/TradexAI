@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart } from 'lightweight-charts';
 import GlassCard from '../components/GlassCard';
 
-const intervalMap = { '15M': '15m', '1H': '1h', '4H': '4h', '1D': '1d' };
+const intervalMap = { '5M': '5m', '15M': '15m', '1H': '1h', '4H': '4h', '1D': '1d' };
 
 const MarketInfo = ({ data }) => (
   <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
@@ -35,9 +35,16 @@ export default function ChartsPage({ theme }) {
   const lineSeries = useRef(null);
   const candleSeries = useRef(null);
   const volumeSeries = useRef(null);
+  const overlayRef = useRef(null);
+  const startPoint = useRef(null);
 
-  const availablePairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
-  const intervals = ['15M', '1H', '4H', '1D'];
+  const [tool, setTool] = useState('none'); // none | measure | line
+  const [tempLine, setTempLine] = useState(null);
+  const [lines, setLines] = useState([]);
+  const [measureText, setMeasureText] = useState(null);
+
+  const availablePairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'DOGE/USDT'];
+  const intervals = ['5M', '15M', '1H', '4H', '1D'];
   const [activePair, setActivePair] = useState(availablePairs[0]);
   const [activeInterval, setActiveInterval] = useState('1H');
   const [chartType, setChartType] = useState('candle');
@@ -54,6 +61,10 @@ export default function ChartsPage({ theme }) {
       },
       width: chartRef.current.clientWidth,
       height: 400,
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0, bottom: 0.3 },
+      },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
       grid: {
@@ -74,6 +85,10 @@ export default function ChartsPage({ theme }) {
     const vSeries = chart.addHistogramSeries({
       color: '#888',
       priceFormat: { type: 'volume' },
+      priceScaleId: 'volume',
+    });
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: { top: 0.7, bottom: 0 },
       priceScaleId: '',
       scaleMargins: { top: 0.8, bottom: 0 },
     });
@@ -94,6 +109,73 @@ export default function ChartsPage({ theme }) {
       volumeSeries.current = null;
     };
   }, [theme, chartType]);
+
+  useEffect(() => {
+    const container = chartRef.current;
+    if (!container) return;
+
+    const mouseDown = (e) => {
+      if (tool === 'line' || tool === 'measure') {
+        const rect = container.getBoundingClientRect();
+        startPoint.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      }
+    };
+
+    const mouseMove = (e) => {
+      if (!startPoint.current) return;
+      const rect = container.getBoundingClientRect();
+      const x2 = e.clientX - rect.left;
+      const y2 = e.clientY - rect.top;
+      setTempLine({
+        x1: startPoint.current.x,
+        y1: startPoint.current.y,
+        x2,
+        y2,
+      });
+      if (tool === 'measure' && chartInstance.current) {
+        const chart = chartInstance.current;
+        const t1 = chart.timeScale().coordinateToTime(startPoint.current.x);
+        const t2 = chart.timeScale().coordinateToTime(x2);
+        const p1 = chart.priceScale('right').coordinateToPrice(startPoint.current.y);
+        const p2 = chart.priceScale('right').coordinateToPrice(y2);
+        if (t1 && t2 && p1 && p2) {
+          const diffP = (p2 - p1).toFixed(2);
+          const diffT = Math.abs(t2 - t1);
+          setMeasureText({ x: x2 + 10, y: y2, text: `${diffP} / ${diffT}` });
+        }
+      }
+    };
+
+    const mouseUp = (e) => {
+      if (!startPoint.current) return;
+      const rect = container.getBoundingClientRect();
+      const newLine = {
+        x1: startPoint.current.x,
+        y1: startPoint.current.y,
+        x2: e.clientX - rect.left,
+        y2: e.clientY - rect.top,
+      };
+      if (tool === 'line') {
+        setLines((prev) => [...prev, newLine]);
+      }
+      startPoint.current = null;
+      setTempLine(null);
+      setMeasureText(null);
+      if (tool === 'measure') {
+        setTimeout(() => setTool('none'), 0);
+      }
+    };
+
+    container.addEventListener('mousedown', mouseDown);
+    container.addEventListener('mousemove', mouseMove);
+    window.addEventListener('mouseup', mouseUp);
+
+    return () => {
+      container.removeEventListener('mousedown', mouseDown);
+      container.removeEventListener('mousemove', mouseMove);
+      window.removeEventListener('mouseup', mouseUp);
+    };
+  }, [tool]);
 
   const fetchData = useCallback(async () => {
     if (!lineSeries.current || !candleSeries.current || !volumeSeries.current) return;
@@ -156,7 +238,23 @@ export default function ChartsPage({ theme }) {
           </select>
           <button onClick={resetZoom} className="px-3 py-1 bg-black/10 dark:bg-white/20 rounded-md ml-auto">Reset Zoom</button>
         </div>
-        <div ref={chartRef} />
+        <div className="relative" ref={chartRef}>
+          <svg ref={overlayRef} className="absolute inset-0 pointer-events-none">
+            {tempLine && (
+              <line x1={tempLine.x1} y1={tempLine.y1} x2={tempLine.x2} y2={tempLine.y2} stroke="yellow" strokeDasharray="4" />
+            )}
+            {lines.map((l, i) => (
+              <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="cyan" />
+            ))}
+            {measureText && (
+              <text x={measureText.x} y={measureText.y} fill="yellow" fontSize="12">{measureText.text}</text>
+            )}
+          </svg>
+          <div className="absolute left-2 top-2 flex flex-col space-y-2">
+            <button onClick={() => setTool(tool === 'measure' ? 'none' : 'measure')} className={`p-1 rounded-md ${tool === 'measure' ? 'bg-cyan-500 text-white' : 'bg-black/10 dark:bg-white/10'}`}>📏</button>
+            <button onClick={() => setTool(tool === 'line' ? 'none' : 'line')} className={`p-1 rounded-md ${tool === 'line' ? 'bg-cyan-500 text-white' : 'bg-black/10 dark:bg-white/10'}`}>✏️</button>
+          </div>
+        </div>
       </GlassCard>
       <GlassCard>
         <MarketInfo data={info} />
