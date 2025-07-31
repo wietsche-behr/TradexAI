@@ -88,6 +88,10 @@ export default function ChartsPage({ theme }) {
     return () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
+      chartInstance.current = null;
+      lineSeries.current = null;
+      candleSeries.current = null;
+      volumeSeries.current = null;
     };
   }, [theme, chartType]);
 
@@ -101,6 +105,7 @@ export default function ChartsPage({ theme }) {
       const candles = kRes.map(k => ({ time: k[0] / 1000, open: +k[1], high: +k[2], low: +k[3], close: +k[4] }));
       const volumes = kRes.map(k => ({ time: k[0] / 1000, value: +k[5], color: +k[4] >= +k[1] ? '#16a34a' : '#dc2626' }));
       const line = kRes.map(k => ({ time: k[0] / 1000, value: +k[4] }));
+      if (!lineSeries.current || !candleSeries.current || !volumeSeries.current || !chartInstance.current) return;
       candleSeries.current.setData(candles);
       lineSeries.current.setData(line);
       volumeSeries.current.setData(volumes);
@@ -111,7 +116,9 @@ export default function ChartsPage({ theme }) {
         low: +tRes.lowPrice,
         volume: +tRes.volume,
       });
-      chartInstance.current.timeScale().fitContent();
+      if (chartInstance.current) {
+        chartInstance.current.timeScale().fitContent();
+      }
     } catch (err) {
       console.error(err);
     }
