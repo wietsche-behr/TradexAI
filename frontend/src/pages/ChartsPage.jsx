@@ -239,7 +239,7 @@ export default function ChartsPage({ theme }) {
           <button onClick={resetZoom} className="px-3 py-1 bg-black/10 dark:bg-white/20 rounded-md ml-auto">Reset Zoom</button>
         </div>
         <div className="relative" ref={chartRef}>
-          <svg ref={overlayRef} className="absolute inset-0 pointer-events-none">
+          <svg ref={overlayRef} className="absolute inset-0 pointer-events-none z-10">
             {tempLine && (
               <line x1={tempLine.x1} y1={tempLine.y1} x2={tempLine.x2} y2={tempLine.y2} stroke="yellow" strokeDasharray="4" />
             )}
@@ -250,7 +250,7 @@ export default function ChartsPage({ theme }) {
               <text x={measureText.x} y={measureText.y} fill="yellow" fontSize="12">{measureText.text}</text>
             )}
           </svg>
-          <div className="absolute left-2 top-2 flex flex-col space-y-2">
+          <div className="absolute left-2 top-2 flex flex-col space-y-2 z-20">
             <button onClick={() => setTool(tool === 'measure' ? 'none' : 'measure')} className={`p-1 rounded-md ${tool === 'measure' ? 'bg-cyan-500 text-white' : 'bg-black/10 dark:bg-white/10'}`}>📏</button>
             <button onClick={() => setTool(tool === 'line' ? 'none' : 'line')} className={`p-1 rounded-md ${tool === 'line' ? 'bg-cyan-500 text-white' : 'bg-black/10 dark:bg-white/10'}`}>✏️</button>
           </div>
