@@ -1,19 +1,52 @@
 import { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
+import LogModal from '../components/LogModal';
 import { toast } from 'react-hot-toast';
 
-export default function StrategiesPage({ setPage, setLogStrategy }) {
-  const [symbol, setSymbol] = useState('');
-  const [amount, setAmount] = useState('');
+const STRATEGY_INFO = {
+  squeeze_breakout_btc_4h: {
+    description:
+      'Monitors Bollinger Bands and Keltner Channels to trade breakouts from low-volatility squeezes.',
+    symbol: 'BTC/USDT',
+    successRate: 82.4,
+  },
+  squeeze_breakout_xrp_1h: {
+    description: 'Breakout strategy on XRP 1H timeframe.',
+    symbol: 'XRP/USDT',
+    successRate: 72.1,
+  },
+  squeeze_breakout_doge_1h: {
+    description: 'Breakout strategy on DOGE 1H timeframe.',
+    symbol: 'DOGE/USDT',
+    successRate: 65.3,
+  },
+  squeeze_breakout_sol_4h: {
+    description: 'Breakout strategy on SOL 4H timeframe.',
+    symbol: 'SOL/USDT',
+    successRate: 71.5,
+  },
+  hyper_frequency_ema_cross_btc_1m: {
+    description:
+      'A high-frequency strategy using short-term EMA crossovers to scalp profits.',
+    symbol: 'BTC/USDT',
+    successRate: 76.1,
+  },
+  continuous_trend_rider_xrp_1m: {
+    description:
+      'Follows strong, established trends on the 1-minute chart for XRP, aiming for quick, small gains.',
+    symbol: 'XRP/USDT',
+    successRate: 68.9,
+  },
+};
+
+export default function StrategiesPage() {
   const [strategies, setStrategies] = useState([]);
   const [tradeAmounts, setTradeAmounts] = useState({});
-  const [tradeLogs, setTradeLogs] = useState([]);
+  const [selected, setSelected] = useState(null);
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    const stored = JSON.parse(
-      localStorage.getItem('runningStrategyAmounts') || '{}'
-    );
+    const stored = JSON.parse(localStorage.getItem('runningStrategyAmounts') || '{}');
     fetch('http://localhost:8000/strategies', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -25,61 +58,13 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
           if (!s.running) delete updated[s.id];
         });
         setTradeAmounts(updated);
-        localStorage.setItem(
-          'runningStrategyAmounts',
-          JSON.stringify(updated)
-        );
+        localStorage.setItem('runningStrategyAmounts', JSON.stringify(updated));
       })
       .catch(() => {
         setStrategies([]);
         setTradeAmounts(stored);
       });
   }, [token]);
-
-  useEffect(() => {
-    const fetchLogs = () => {
-      fetch('http://localhost:8000/trade_logs', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => setTradeLogs(data.logs || []))
-        .catch(() => setTradeLogs([]));
-    };
-    fetchLogs();
-    const id = setInterval(fetchLogs, 2000);
-    return () => clearInterval(id);
-  }, [token]);
-
-
-  const handleTestAction = (action) => {
-    if (!symbol || !amount) return;
-    const endpoint = action === 'buy' ? '/strategy/test/buy' : '/strategy/test/sell';
-    const payload = { symbol, amount: parseFloat(amount) };
-
-    fetch(`http://localhost:8000${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then((data) => {
-        if (action === 'buy') {
-          toast.success('Bought successfully');
-          const qty = data.buy?.executedQty || amount;
-          setAmount(qty);
-        } else {
-          toast.success('Sold successfully');
-          setAmount('');
-        }
-      })
-      .catch(() => toast.error('Error executing order'));
-  };
 
   const toggleStrategy = (id, running) => {
     const endpoint = running ? `/strategy/${id}/stop` : `/strategy/${id}/start`;
@@ -88,10 +73,7 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
       toast.error('Please enter the trade amount');
       return;
     }
-    const options = {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    };
+    const options = { method: 'POST', headers: { Authorization: `Bearer ${token}` } };
     if (!running) {
       options.headers['Content-Type'] = 'application/json';
       options.body = JSON.stringify({ amount: parseFloat(amount) });
@@ -102,24 +84,16 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
         return res.json();
       })
       .then(() => {
-        setStrategies((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, running: !running } : s))
-        );
+        setStrategies((prev) => prev.map((s) => (s.id === id ? { ...s, running: !running } : s)));
         if (!running) {
           const updated = { ...tradeAmounts, [id]: amount };
           setTradeAmounts(updated);
-          localStorage.setItem(
-            'runningStrategyAmounts',
-            JSON.stringify(updated)
-          );
+          localStorage.setItem('runningStrategyAmounts', JSON.stringify(updated));
         } else {
           const updated = { ...tradeAmounts };
           delete updated[id];
           setTradeAmounts(updated);
-          localStorage.setItem(
-            'runningStrategyAmounts',
-            JSON.stringify(updated)
-          );
+          localStorage.setItem('runningStrategyAmounts', JSON.stringify(updated));
         }
       })
       .catch(() => toast.error('Error executing strategy'));
@@ -131,111 +105,60 @@ export default function StrategiesPage({ setPage, setLogStrategy }) {
         <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Strategy Management</h2>
         <p className="text-gray-600 dark:text-gray-400">Execute available strategies.</p>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GlassCard className="space-y-4">
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Available Strategies</h3>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between border-b border-gray-400/20 dark:border-white/20 pb-2">
-            <span className="font-medium text-gray-700 dark:text-gray-200">Test Strategy</span>
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                placeholder="Symbol"
-                value={symbol}
-                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
-              />
-              <input
-                type="text"
-                placeholder="Amount"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
-              />
-              <button
-                onClick={() => handleTestAction('buy')}
-                className="px-3 py-1 rounded-md bg-green-500 hover:bg-green-600 text-white text-sm"
-              >
-                Buy
-              </button>
-              <button
-                onClick={() => handleTestAction('sell')}
-                className="px-3 py-1 rounded-md bg-red-500 hover:bg-red-600 text-white text-sm"
-              >
-                Sell
-              </button>
-            </div>
-          </div>
-          {strategies.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between border-b border-gray-400/20 dark:border-white/20 pb-2 last:border-b-0"
-            >
-              <span className="font-medium text-gray-700 dark:text-gray-200">
-                {s.name}
-              </span>
-              <div className="flex items-center space-x-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {strategies.map((s) => {
+          const info = STRATEGY_INFO[s.id] || {};
+          const status = s.running ? 'Active' : 'Inactive';
+          return (
+            <GlassCard key={s.id}>
+              <div className="flex justify-between items-start">
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-white">{s.name}</h3>
+                <span className={`px-3 py-1 text-xs rounded-full ${s.running ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-300'}`}>{status}</span>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{info.description}</p>
+              <div className="mt-4 flex justify-between items-center">
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Symbol</p>
+                  <p className="font-semibold text-gray-700 dark:text-white">{info.symbol || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Amount</p>
+                  <p className="font-semibold text-gray-700 dark:text-white">{tradeAmounts[s.id] || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Success Rate</p>
+                  <p className="font-semibold text-cyan-500 dark:text-cyan-400">{info.successRate ? `${info.successRate}%` : '--'}</p>
+                </div>
+              </div>
+              <div className="mt-6 flex space-x-2">
                 {s.running ? (
-                  <span className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white text-center">
-                    {tradeAmounts[s.id]}
-                  </span>
+                  <button
+                    onClick={() => toggleStrategy(s.id, true)}
+                    className="w-full py-2 rounded-lg font-bold bg-red-500/80 text-white"
+                  >
+                    Stop
+                  </button>
                 ) : (
-                  <input
-                    type="number"
-                    placeholder="Amount"
-                    value={tradeAmounts[s.id] || ''}
-                    onChange={(e) =>
-                      setTradeAmounts({ ...tradeAmounts, [s.id]: e.target.value })
-                    }
-                    className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
-                  />
+                  <button
+                    onClick={() => toggleStrategy(s.id, false)}
+                    className="w-full py-2 rounded-lg font-bold bg-green-500/80 text-white"
+                  >
+                    Start
+                  </button>
                 )}
                 <button
-                  onClick={() => toggleStrategy(s.id, s.running)}
-                  className={`px-3 py-1 rounded-md text-white text-sm ${s.running ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
-                >
-                  {s.running ? 'Stop' : 'Start'}
-                </button>
-                <button
-                  onClick={() => {
-                    setLogStrategy(s.id);
-                    setPage('strategy_logs');
-                  }}
-                  className="px-3 py-1 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-sm"
+                  onClick={() => setSelected(s)}
+                  className="w-full py-2 rounded-lg font-bold bg-gray-500/50 text-white"
                 >
                   Logs
                 </button>
               </div>
-            </div>
-          ))}
-          {strategies.length === 0 && (
-            <p className="text-gray-500">No strategies found.</p>
-          )}
-        </div>
-        </GlassCard>
-        <GlassCard className="space-y-4">
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Trade Logs</h3>
-          <div className="space-y-1 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
-            {tradeLogs.map((l, i) => {
-              let color = 'text-gray-800 dark:text-gray-200';
-              if (l.includes('SELL')) {
-                const m = l.match(/([-\d.]+)% profit/);
-                if (m) {
-                  const pct = parseFloat(m[1]);
-                  color = pct >= 0 ? 'text-green-600' : 'text-red-600';
-                }
-              } else if (l.includes('BUY')) {
-                color = 'text-blue-600';
-              }
-              return (
-                <div key={i} className={color}>
-                  {l}
-                </div>
-              );
-            })}
-          </div>
-        </GlassCard>
+            </GlassCard>
+          );
+        })}
+        {strategies.length === 0 && <p className="text-gray-500">No strategies found.</p>}
       </div>
+      {selected && <LogModal strategy={selected} token={token} onClose={() => setSelected(null)} />}
     </main>
   );
 }
