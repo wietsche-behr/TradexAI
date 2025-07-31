@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=C:\Users\Morgan\Documents\TradexAI\venv
+set VIRTUAL_ENV=C:\Users\Wietsche\Documents\GitHub\TradexAI\venv
 
 if not defined PROMPT set PROMPT=$P$G
 
