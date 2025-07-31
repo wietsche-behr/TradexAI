@@ -158,6 +158,11 @@ export default function ChartsPage({ theme }) {
     return () => clearInterval(id);
   }, [fetchMarket]);
 
+  // Reset zoom when pair or interval changes
+  useEffect(() => {
+    setZoomDomain({});
+  }, [activePair, activeInterval]);
+
   const chartData =
     chartType === 'line' ? currentMarketData.lineData : currentMarketData.candleData;
 
@@ -181,27 +186,36 @@ export default function ChartsPage({ theme }) {
   };
   const yDomainActual = computeYRange();
 
-  const clampDomain = (left, right) => {
-    let newLeft = left;
-    let newRight = right;
-    if (newLeft < dataMin) {
-      const span = newRight - newLeft;
-      newLeft = dataMin;
-      newRight = dataMin + span;
-    }
-    if (newRight > dataMax) {
-      const span = newRight - newLeft;
-      newRight = dataMax;
-      newLeft = dataMax - span;
-    }
-    if (newLeft >= newRight) {
-      return { left: dataMin, right: dataMax };
-    }
-    return { left: newLeft, right: newRight };
-  };
+  const clampDomain = useCallback(
+    (left, right) => {
+      let newLeft = left;
+      let newRight = right;
+      const minSpan = Math.max((dataMax - dataMin) / 100, 1);
+      if (newLeft < dataMin) {
+        const span = newRight - newLeft;
+        newLeft = dataMin;
+        newRight = dataMin + span;
+      }
+      if (newRight > dataMax) {
+        const span = newRight - newLeft;
+        newRight = dataMax;
+        newLeft = dataMax - span;
+      }
+      if (newRight - newLeft < minSpan) {
+        const mid = (newLeft + newRight) / 2;
+        newLeft = mid - minSpan / 2;
+        newRight = mid + minSpan / 2;
+      }
+      if (newLeft >= newRight) {
+        return { left: dataMin, right: dataMax };
+      }
+      return { left: newLeft, right: newRight };
+    },
+    [dataMin, dataMax]
+  );
 
   // Mouse interactions
-  const handleMouseDown = (e) => {
+  const handleMouseDown = useCallback((e) => {
     if (activeTool === 'zoom' && e && e.activeLabel !== undefined) {
       setSelection({ start: e.activeLabel, end: null });
     }
@@ -213,9 +227,9 @@ export default function ChartsPage({ theme }) {
         right: domainRight,
       };
     }
-  };
+  }, [activeTool, domainLeft, domainRight]);
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (e && e.activePayload && e.activePayload.length) {
       const pt = e.activePayload[0].payload;
       let price;
@@ -241,47 +255,54 @@ export default function ChartsPage({ theme }) {
       const clamped = clampDomain(newLeft, newRight);
       setZoomDomain({ left: clamped.left, right: clamped.right });
     }
-  };
+  }, [activeTool, selection.start, chartType, clampDomain]);
 
-  const handleMouseUp = (e) => {
-    if (activeTool === 'zoom' && selection.start !== null && selection.end !== null) {
-      let left = selection.start;
-      let right = selection.end;
-      if (left > right) [left, right] = [right, left];
-      const clamped = clampDomain(left, right);
+  const handleMouseUp = useCallback(
+    (e) => {
+      if (activeTool === 'zoom' && selection.start !== null && selection.end !== null) {
+        let left = selection.start;
+        let right = selection.end;
+        if (left > right) [left, right] = [right, left];
+        const clamped = clampDomain(left, right);
+        setZoomDomain({ left: clamped.left, right: clamped.right });
+        setSelection({ start: null, end: null });
+      }
+      if (panRef.current.isPanning) {
+        panRef.current.isPanning = false;
+      }
+    },
+    [activeTool, selection, clampDomain]
+  );
+
+  const handleWheel = useCallback(
+    (e) => {
+      e.preventDefault();
+      if (!chartWrapperRef.current) return;
+      const bounding = chartWrapperRef.current.getBoundingClientRect();
+      const mouseX = e.clientX - bounding.left;
+      const width = bounding.width;
+      if (width <= 0) return;
+      const span = domainRight - domainLeft;
+      if (span <= 0) return;
+      const percent = mouseX / width;
+      const focal = domainLeft + span * percent;
+      const scale = e.deltaY > 0 ? 1.1 : 0.9; // wheel down = zoom out
+      const newSpan = span * scale;
+      let newLeft = focal - (focal - domainLeft) * scale;
+      let newRight = focal + (domainRight - focal) * scale;
+      const clamped = clampDomain(newLeft, newRight);
       setZoomDomain({ left: clamped.left, right: clamped.right });
-      setSelection({ start: null, end: null });
-    }
-    if (panRef.current.isPanning) {
-      panRef.current.isPanning = false;
-    }
-  };
+    },
+    [domainLeft, domainRight, clampDomain]
+  );
 
-  const handleWheel = (e) => {
-    e.preventDefault();
-    if (!chartWrapperRef.current) return;
-    const bounding = chartWrapperRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - bounding.left;
-    const width = bounding.width;
-    if (width <= 0) return;
-    const span = domainRight - domainLeft;
-    if (span <= 0) return;
-    const percent = mouseX / width;
-    const focal = domainLeft + span * percent;
-    const scale = e.deltaY > 0 ? 1.1 : 0.9; // wheel down = zoom out
-    const newSpan = span * scale;
-    let newLeft = focal - (focal - domainLeft) * scale;
-    let newRight = focal + (domainRight - focal) * scale;
-    const clamped = clampDomain(newLeft, newRight);
-    setZoomDomain({ left: clamped.left, right: clamped.right });
-  };
-
-  const handleChartClick = (e) => {
-    if (!e || !e.activeLabel) return;
-    const clickedTime = e.activeLabel;
-    let clickedPrice;
-    if (chartType === 'line') {
-      clickedPrice = e.activePayload?.[0]?.payload?.price;
+  const handleChartClick = useCallback(
+    (e) => {
+      if (!e || !e.activeLabel) return;
+      const clickedTime = e.activeLabel;
+      let clickedPrice;
+      if (chartType === 'line') {
+        clickedPrice = e.activePayload?.[0]?.payload?.price;
     } else {
       clickedPrice = e.activePayload?.[0]?.payload?.body?.[1];
     }
@@ -314,8 +335,9 @@ export default function ChartsPage({ theme }) {
         setTempTrendStart(null);
       }
       return;
-    }
-  };
+    },
+    [activeTool, chartType, tempTrendStart]
+  );
 
   const resetZoom = () => setZoomDomain({});
 
@@ -525,6 +547,10 @@ export default function ChartsPage({ theme }) {
             onWheelCapture={(e) => {
               e.preventDefault();
               handleWheel(e);
+            }}
+            onMouseLeave={(e) => {
+              handleMouseUp(e);
+              setCrosshair(null);
             }}
           >
             <ResponsiveContainer>
