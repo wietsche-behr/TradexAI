@@ -123,7 +123,26 @@ export default function StrategiesPage() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Amount</p>
-                  <p className="font-semibold text-gray-700 dark:text-white">{tradeAmounts[s.id] || '-'}</p>
+                  {s.running ? (
+                    <p className="font-semibold text-gray-700 dark:text-white">
+                      {tradeAmounts[s.id] || '-'}
+                    </p>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Amount"
+                      value={tradeAmounts[s.id] || ''}
+                      onChange={(e) =>
+                        setTradeAmounts((prev) => ({
+                          ...prev,
+                          [s.id]: e.target.value,
+                        }))
+                      }
+                      className="w-24 px-2 py-1 border rounded bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white"
+                    />
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Success Rate</p>
