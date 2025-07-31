@@ -113,7 +113,7 @@ export default function StrategiesPage() {
             <GlassCard key={s.id}>
               <div className="flex justify-between items-start">
                 <h3 className="text-xl font-semibold text-gray-800 dark:text-white">{s.name}</h3>
-                <span className={`px-3 py-1 text-xs rounded-full ${s.running ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-300'}`}>{status}</span>
+                <span className={`px-3 py-1 text-xs rounded-full ${s.running ? 'bg-green-500/20 text-green-100' : 'bg-gray-500/20 text-gray-100'}`}>{status}</span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{info.description}</p>
               <div className="mt-4 flex justify-between items-center">

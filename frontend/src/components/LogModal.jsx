@@ -34,7 +34,7 @@ export default function LogModal({ strategy, token, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <GlassCard className="w-full max-w-4xl h-[80vh] flex flex-col">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Logs: {strategy.name}</h2>
@@ -43,21 +43,21 @@ export default function LogModal({ strategy, token, onClose }) {
         <div className="flex border-b border-gray-400/20 dark:border-white/20 mb-4">
           <button
             onClick={() => setActiveTab('trade')}
-            className={`px-4 py-2 text-sm font-semibold transition ${activeTab === 'trade' ? 'border-b-2 border-cyan-500 dark:border-cyan-400 text-cyan-600 dark:text-cyan-400' : 'text-gray-500 dark:text-gray-400'}`}
+            className={`px-4 py-2 text-sm font-semibold transition ${activeTab === 'trade' ? 'border-b-2 border-cyan-500 dark:border-cyan-400 text-cyan-600 dark:text-cyan-400' : 'text-gray-600 dark:text-gray-300'}`}
           >
             Trade Logs
           </button>
           <button
             onClick={() => setActiveTab('detail')}
-            className={`px-4 py-2 text-sm font-semibold transition ${activeTab === 'detail' ? 'border-b-2 border-cyan-500 dark:border-cyan-400 text-cyan-600 dark:text-cyan-400' : 'text-gray-500 dark:text-gray-400'}`}
+            className={`px-4 py-2 text-sm font-semibold transition ${activeTab === 'detail' ? 'border-b-2 border-cyan-500 dark:border-cyan-400 text-cyan-600 dark:text-cyan-400' : 'text-gray-600 dark:text-gray-300'}`}
           >
             Detail Logs
           </button>
         </div>
         <div className="flex-grow overflow-y-auto">
           {activeTab === 'trade' && (
-            <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
-              <thead className="border-b border-gray-400/20 dark:border-white/20 text-gray-600 dark:text-gray-400">
+            <table className="w-full text-left text-sm text-gray-700 dark:text-gray-100">
+              <thead className="border-b border-gray-400/20 dark:border-white/20 text-gray-700 dark:text-gray-200">
                 <tr>
                   <th className="p-2">Type</th>
                   <th className="p-2">Pair</th>
@@ -79,12 +79,12 @@ export default function LogModal({ strategy, token, onClose }) {
             </table>
           )}
           {activeTab === 'detail' && (
-            <div className="font-mono text-xs bg-gray-200/50 dark:bg-black/20 p-4 rounded-lg h-full">
+            <div className="font-mono text-xs bg-gray-200/50 dark:bg-black/30 p-4 rounded-lg h-full">
               {detailLogs.map((log, i) => {
                 const isConfirm = log.includes('CONFIRMED');
                 const isError = log.includes('ERROR');
                 const isStart = log.includes('started');
-                let logColor = 'text-gray-700 dark:text-gray-400';
+                let logColor = 'text-gray-700 dark:text-gray-200';
                 if (isConfirm) logColor = 'text-green-600 dark:text-green-400';
                 if (isError) logColor = 'text-red-600 dark:text-red-400';
                 if (isStart) logColor = 'text-cyan-600 dark:text-cyan-400';
