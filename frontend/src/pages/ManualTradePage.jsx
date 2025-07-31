@@ -183,21 +183,60 @@ const ChartComponent = ({ theme, stopLoss, takeProfit, setStopLoss, setTakeProfi
   );
 };
 
-const ManualTradePanel = ({ stopLoss, takeProfit, setStopLoss, setTakeProfit, isSlPlotted, setIsSlPlotted, isTpPlotted, setIsTpPlotted, currentPrice }) => {
+const ManualTradePanel = ({ stopLoss, takeProfit, setStopLoss, setTakeProfit, isSlPlotted, setIsSlPlotted, isTpPlotted, setIsTpPlotted, pair, setPair }) => {
   const [tradeType, setTradeType] = useState('buy');
   const [price, setPrice] = useState('');
   const [amount, setAmount] = useState('');
-  const [leverage, setLeverage] = useState(1);
+  const [available, setAvailable] = useState(0);
+  const token = localStorage.getItem('token');
+
+  const handleOrder = () => {
+    if (!token || !amount) return;
+    fetch('http://localhost:8000/manual_trade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        symbol: pair.replace('/', ''),
+        side: tradeType.toUpperCase(),
+        amount: parseFloat(amount),
+        take_profit: takeProfit ? parseFloat(takeProfit) : null,
+        stop_loss: stopLoss ? parseFloat(stopLoss) : null,
+      }),
+    }).then(() => setAmount('')).catch(() => {});
+  };
+
+  useEffect(() => {
+    const fetchPrice = () => {
+      const symbol = pair.replace('/', '');
+      fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`)
+        .then(r => r.json())
+        .then(d => setPrice(parseFloat(d.price).toFixed(2)))
+        .catch(() => {});
+    };
+    fetchPrice();
+    const id = setInterval(fetchPrice, 5000);
+    return () => clearInterval(id);
+  }, [pair]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch('http://localhost:8000/assets', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        const usdt = (data.balances || []).find(b => b.asset === 'USDT');
+        if (usdt) setAvailable(parseFloat(usdt.free));
+      })
+      .catch(() => setAvailable(0));
+  }, [token]);
   const handlePlotToggle = (type) => {
     if (type === 'tp') {
-      if (isTpPlotted) { setIsTpPlotted(false); setTakeProfit(''); } else { setIsTpPlotted(true); if (!takeProfit) { setTakeProfit((currentPrice * 1.01).toFixed(2)); } }
+      if (isTpPlotted) { setIsTpPlotted(false); setTakeProfit(''); } else { setIsTpPlotted(true); if (!takeProfit && price) { setTakeProfit((parseFloat(price) * 1.01).toFixed(2)); } }
     }
     if (type === 'sl') {
-      if (isSlPlotted) { setIsSlPlotted(false); setStopLoss(''); } else { setIsSlPlotted(true); if (!stopLoss) { setStopLoss((currentPrice * 0.99).toFixed(2)); } }
+      if (isSlPlotted) { setIsSlPlotted(false); setStopLoss(''); } else { setIsSlPlotted(true); if (!stopLoss && price) { setStopLoss((parseFloat(price) * 0.99).toFixed(2)); } }
     }
   };
-  const total = (price && amount) ? (price * amount).toFixed(2) : '0.00';
-  const cost = (price && amount) ? (price * amount / leverage).toFixed(2) : '0.00';
+  const total = amount ? parseFloat(amount).toFixed(2) : '0.00';
   return (
     <GlassCard className="w-full lg:w-96 flex-shrink-0">
       <div className="flex mb-4">
@@ -206,20 +245,16 @@ const ManualTradePanel = ({ stopLoss, takeProfit, setStopLoss, setTakeProfit, is
       </div>
       <div className="space-y-4">
         <div className="relative"><label className="text-xs text-gray-500 dark:text-gray-400">Price</label><input type="number" placeholder="Market" value={price} onChange={e => setPrice(e.target.value)} className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500" /><span className="absolute right-3 top-6 text-xs text-gray-500">USDT</span></div>
-        <div className="relative"><label className="text-xs text-gray-500 dark:text-gray-400">Amount</label><input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500" /><span className="absolute right-3 top-6 text-xs text-gray-500">BTC</span></div>
-        <div>
-          <label className="text-xs text-gray-500 dark:text-gray-400">Leverage: {leverage}x</label>
-          <input type="range" min="1" max="100" value={leverage} onChange={e => setLeverage(e.target.value)} className="w-full h-2 bg-gray-500/20 rounded-lg appearance-none cursor-pointer" />
-        </div>
+        <div className="relative"><label className="text-xs text-gray-500 dark:text-gray-400">Pair</label><select value={pair} onChange={e => setPair(e.target.value)} className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md"><option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option></select></div>
+        <div className="relative"><label className="text-xs text-gray-500 dark:text-gray-400">Amount</label><input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500" /><span className="absolute right-3 top-6 text-xs text-gray-500">USDT</span></div>
         <div className="relative"><label className="text-xs text-gray-500 dark:text-gray-400">Take Profit</label><div className="flex items-center"><input type="number" placeholder="Optional" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500" /><button onClick={() => handlePlotToggle('tp')} className={`p-2 ml-2 rounded-md ${isTpPlotted ? 'bg-cyan-500/30 text-cyan-400' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}><Target size={18} /></button></div></div>
         <div className="relative"><label className="text-xs text-gray-500 dark:text-gray-400">Stop Loss</label><div className="flex items-center"><input type="number" placeholder="Optional" value={stopLoss} onChange={e => setStopLoss(e.target.value)} className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500" /><button onClick={() => handlePlotToggle('sl')} className={`p-2 ml-2 rounded-md ${isSlPlotted ? 'bg-cyan-500/30 text-cyan-400' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}><Target size={18} /></button></div></div>
         <div className="border-t border-gray-400/20 dark:border-white/20 my-4"></div>
         <div className="text-xs space-y-2 text-gray-600 dark:text-gray-300">
           <div className="flex justify-between"><span>Total:</span><span>{total} USDT</span></div>
-          <div className="flex justify-between"><span>Cost:</span><span>{cost} USDT</span></div>
-          <div className="flex justify-between"><span>Available:</span><span>$1,250.75 USDT</span></div>
+          <div className="flex justify-between"><span>Available:</span><span>{available.toFixed(2)} USDT</span></div>
         </div>
-        <button className={`w-full py-3 mt-4 rounded-lg text-white font-bold text-lg transition-all shadow-lg ${tradeType === 'buy' ? 'bg-green-500 hover:bg-green-600 shadow-green-500/30' : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'}`}>Place {tradeType === 'buy' ? 'Buy' : 'Sell'} Order</button>
+        <button onClick={handleOrder} className={`w-full py-3 mt-4 rounded-lg text-white font-bold text-lg transition-all shadow-lg ${tradeType === 'buy' ? 'bg-green-500 hover:bg-green-600 shadow-green-500/30' : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'}`}>Place {tradeType === 'buy' ? 'Buy' : 'Sell'} Order</button>
       </div>
     </GlassCard>
   );
@@ -234,7 +269,7 @@ export default function ManualTradePage({ theme }) {
   return (
     <main className="p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
       <ChartComponent theme={theme} stopLoss={isSlPlotted ? stopLoss : null} takeProfit={isTpPlotted ? takeProfit : null} setStopLoss={setStopLoss} setTakeProfit={setTakeProfit} activePair={activePair} setActivePair={setActivePair} />
-      <ManualTradePanel stopLoss={stopLoss} takeProfit={takeProfit} setStopLoss={setStopLoss} setTakeProfit={setTakeProfit} isSlPlotted={isSlPlotted} setIsSlPlotted={setIsSlPlotted} isTpPlotted={isTpPlotted} setIsTpPlotted={setIsTpPlotted} currentPrice={marketData[activePair].price} />
+      <ManualTradePanel stopLoss={stopLoss} takeProfit={takeProfit} setStopLoss={setStopLoss} setTakeProfit={setTakeProfit} isSlPlotted={isSlPlotted} setIsSlPlotted={setIsSlPlotted} isTpPlotted={isTpPlotted} setIsTpPlotted={setIsTpPlotted} pair={activePair} setPair={setActivePair} />
     </main>
   );
 }
