@@ -36,6 +36,7 @@ export default function ChartsPage({ theme }) {
   const [info, setInfo] = useState(null);
   const [tvReady, setTvReady] = useState(false);
   const containerRef = useRef(null);
+  const containerId = useRef(`tv_container_${Math.random().toString(36).slice(2)}`);
   const widgetRef = useRef(null);
 
   useEffect(() => {
@@ -72,7 +73,7 @@ export default function ChartsPage({ theme }) {
     widgetRef.current = new window.TradingView.widget({
       symbol,
       interval: intervalMap[activeInterval],
-      container_id: containerRef.current,
+      container_id: containerId.current,
       width: '100%',
       height: 500,
       theme,
@@ -117,7 +118,7 @@ export default function ChartsPage({ theme }) {
             </button>
           ))}
         </div>
-        <div ref={containerRef} className="w-full h-[500px]" />
+        <div ref={containerRef} id={containerId.current} className="w-full h-[500px]" />
       </GlassCard>
     </main>
   );
