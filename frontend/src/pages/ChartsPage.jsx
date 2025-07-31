@@ -9,6 +9,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceArea,
+  ReferenceLine,
+  ReferenceDot,
   BarChart,
 } from 'recharts';
 import {
@@ -17,6 +19,7 @@ import {
   ArrowDownCircle,
   LineChart,
   CandlestickChart,
+  ChevronDown,
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 
@@ -66,6 +69,7 @@ export default function ChartsPage({ theme }) {
   const [buyMarker, setBuyMarker] = useState(null);
   const [sellMarker, setSellMarker] = useState(null);
   const [zoomState, setZoomState] = useState({});
+  const [crosshair, setCrosshair] = useState(null);
   const [marketData, setMarketData] = useState({});
 
   const currentMarketData = marketData[activePair] || {
@@ -154,16 +158,17 @@ export default function ChartsPage({ theme }) {
     <main className="p-4 sm:p-6 lg:p-8">
       <GlassCard className="mb-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
-          <div>
+          <div className="relative">
             <select
               value={activePair}
               onChange={(e) => setActivePair(e.target.value)}
-              className="px-4 py-2 text-sm font-semibold rounded-md bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-300"
+              className="appearance-none pr-8 px-3 py-2 text-sm rounded-md bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/20 text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               {pairs.map((pair) => (
                 <option key={pair} value={pair}>{pair}</option>
               ))}
             </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400" size={16} />
           </div>
           <MarketInfo data={currentMarketData} />
         </div>
@@ -211,7 +216,20 @@ export default function ChartsPage({ theme }) {
                 data={chartData}
                 syncId="anyId"
                 onMouseDown={(e) => activeTool === 'zoom' && e && setZoomState({ ...zoomState, refAreaLeft: e.activeLabel })}
-                onMouseMove={(e) => zoomState.refAreaLeft && activeTool === 'zoom' && e && setZoomState({ ...zoomState, refAreaRight: e.activeLabel })}
+                onMouseMove={(e) => {
+                  if (zoomState.refAreaLeft && activeTool === 'zoom' && e) {
+                    setZoomState({ ...zoomState, refAreaRight: e.activeLabel });
+                  }
+                  if (e && e.activeLabel != null && e.activePayload) {
+                    const price = chartType === 'line'
+                      ? e.activePayload[0].payload.price
+                      : e.activePayload[0].payload.body[1];
+                    setCrosshair({ x: e.activeLabel, y: price });
+                  } else {
+                    setCrosshair(null);
+                  }
+                }}
+                onMouseLeave={() => setCrosshair(null)}
                 onMouseUp={activeTool === 'zoom' ? zoom : undefined}
                 onClick={handleChartClick}
               >
@@ -236,6 +254,18 @@ export default function ChartsPage({ theme }) {
                 {zoomState.refAreaLeft && zoomState.refAreaRight ? (
                   <ReferenceArea x1={zoomState.refAreaLeft} x2={zoomState.refAreaRight} strokeOpacity={0.3} />
                 ) : null}
+                {crosshair && (
+                  <>
+                    <ReferenceLine x={crosshair.x} stroke={axisColor} strokeDasharray="3 3" />
+                    <ReferenceLine y={crosshair.y} stroke={axisColor} strokeDasharray="3 3" />
+                  </>
+                )}
+                {buyMarker && (
+                  <ReferenceDot x={buyMarker.time} y={buyMarker.price} r={4} fill="#22c55e" stroke="none" />
+                )}
+                {sellMarker && (
+                  <ReferenceDot x={sellMarker.time} y={sellMarker.price} r={4} fill="#ef4444" stroke="none" />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
