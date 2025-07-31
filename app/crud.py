@@ -12,8 +12,7 @@ def create_trade(trade: schemas.TradeCreate, user_id: int):
     new_trade = db.create_trade(data)
     try:
         # recompute user's total profit whenever a new trade is recorded
-        trades = db.get_trades(user_id, skip=0, limit=1000) or []
-        _compute_metrics(user_id, trades)
+        _compute_metrics(user_id)
     except Exception:
         pass
     return new_trade
@@ -38,8 +37,7 @@ def update_trade(trade_id: int, trade: schemas.TradeCreate):
     updated = db.update_trade(trade_id, data)
     try:
         # update cached metrics after trade modifications
-        trades = db.get_trades(existing["owner_id"], skip=0, limit=1000) or []
-        _compute_metrics(existing["owner_id"], trades)
+        _compute_metrics(existing["owner_id"])
     except Exception:
         pass
     return updated
@@ -49,8 +47,7 @@ def delete_trade(trade_id: int):
     existing = get_trade(trade_id)
     db.delete_trade(trade_id)
     try:
-        trades = db.get_trades(existing["owner_id"], skip=0, limit=1000) or []
-        _compute_metrics(existing["owner_id"], trades)
+        _compute_metrics(existing["owner_id"])
     except Exception:
         pass
     return existing

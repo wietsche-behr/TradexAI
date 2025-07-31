@@ -138,9 +138,10 @@ const TradeHistoryTable = ({ tradeHistory }) => (
           <tr>
             <th className="p-3">ID</th>
             <th className="p-3">Pair</th>
-            <th className="p-3">Type</th>
+            <th className="p-3">Strategy</th>
             <th className="p-3">Status</th>
-            <th className="p-3 text-right">Profit/Loss</th>
+            <th className="p-3 text-right">Profit %</th>
+            <th className="p-3 text-right">Profit $</th>
           </tr>
         </thead>
         <tbody>
@@ -148,9 +149,10 @@ const TradeHistoryTable = ({ tradeHistory }) => (
             <tr key={trade.id} className="border-b border-gray-400/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               <td className="p-3 font-mono text-xs">{trade.id}</td>
               <td className="p-3 font-semibold text-gray-800 dark:text-white">{trade.pair}</td>
-              <td className={`p-3 font-bold ${trade.type === 'BUY' ? 'text-cyan-500 dark:text-cyan-400' : 'text-fuchsia-500 dark:text-fuchsia-400'}`}>{trade.type}</td>
+              <td className="p-3">{trade.strategy}</td>
               <td className="p-3"><span className={`px-2 py-1 text-xs rounded-full ${trade.status === 'Open' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-gray-500/20 text-gray-300'}`}>{trade.status}</span></td>
-              <td className={`p-3 text-right font-semibold ${trade.profit >= 0 ? 'text-green-500 dark:text-green-400' : 'text-red-400'}`}>{trade.profit >= 0 ? `+$${trade.profit.toFixed(2)}` : `-$${Math.abs(trade.profit).toFixed(2)}`}</td>
+              <td className="p-3 text-right font-semibold">{trade.profit_percentage.toFixed(2)}%</td>
+              <td className={`p-3 text-right font-semibold ${trade.profit >= 0 ? 'text-green-500 dark:text-green-400' : 'text-red-400'}`}>${trade.profit.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>

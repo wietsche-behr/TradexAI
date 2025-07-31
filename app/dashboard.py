@@ -9,101 +9,77 @@ FEE_RATE = 0.001
 router = APIRouter()
 
 
-def _compute_metrics(user_id: int, trades):
-    # sort trades to ensure calculations happen chronologically
-    trades_sorted = sorted(trades or [], key=lambda t: t.get("id", 0))
+def _compute_metrics(user_id: int, trades=None):
+    """Compute dashboard metrics using ``trade_summary_view``."""
+    summary = db.get_trade_summary(user_id, skip=0, limit=1000) or []
+    if trades is None:
+        trades = db.get_trades(user_id, skip=0, limit=1000) or []
 
-    open_positions: dict[str, list[dict]] = {}
+    buy_trades = [t for t in trades if (t.get("side") or "").lower() == "buy"]
+    paired_ids = {s.get("entry_trade_id") for s in summary if s.get("entry_trade_id")}
+    open_trades = [t for t in buy_trades if t.get("id") not in paired_ids]
+
+    trade_history: list[dict] = []
+    chart_data: list[dict] = []
+    durations: list[float] = []
+
     total_profit = 0.0
     closed_count = 0
     win_count = 0
-    trade_history: list[dict] = []
-    chart_data: list[dict] = []
 
-    durations = []
+    for row in summary:
+        profit = float(row.get("profit_amount", 0))
+        total_profit += profit
+        closed_count += 1
+        if profit > 0:
+            win_count += 1
 
-    for trade in trades_sorted:
-        # handle potential whitespace or mixed case values from the database
-        symbol = (trade.get("symbol") or "").strip()
-        side = (trade.get("side") or "").strip().upper()
-        quantity = float(trade.get("quantity", 0))
-        price = float(trade.get("price", 0))
-        trade_id = trade.get("id")
-        ts = trade.get("created_at") or trade.get("timestamp")
-        if side == "BUY":
-            open_positions.setdefault(symbol, []).append(
-                {
-                    "quantity": quantity,
-                    "price": price,
-                    "timestamp": ts,
-                }
-            )
-            trade_history.append(
-                {
-                    "id": trade_id,
-                    "pair": symbol,
-                    "type": "BUY",
-                    "status": "Open",
-                    "profit": 0.0,
-                }
-            )
-        elif side == "SELL":
-            qty_left = quantity
-            profit_total = 0.0
-            lst = open_positions.get(symbol, [])
-            while qty_left > 0 and lst:
-                pos = lst[0]
-                trade_qty = min(pos["quantity"], qty_left)
-                gross = (price - pos["price"]) * trade_qty
-                fees = (price + pos["price"]) * trade_qty * FEE_RATE
-                profit_total += gross - fees
-                qty_left -= trade_qty
-                pos["quantity"] -= trade_qty
-                if pos["quantity"] <= 0:
-                    # compute duration when position fully closed
-                    if ts and pos.get("timestamp"):
-                        try:
-                            dur = (
-                                pd.to_datetime(ts)
-                                - pd.to_datetime(pos["timestamp"])
-                            ).total_seconds() / 60
-                            durations.append(dur)
-                        except Exception:
-                            pass
-                    lst.pop(0)
-            total_profit += profit_total
-            closed_count += 1
-            if profit_total > 0:
-                win_count += 1
-            trade_history.append(
-                {
-                    "id": trade_id,
-                    "pair": symbol,
-                    "type": "SELL",
-                    "status": "Closed",
-                    "profit": profit_total,
-                }
-            )
-            chart_data.append(
-                {
-                    "name": str(trade_id),
-                    "profit": max(profit_total, 0.0),
-                    "loss": max(-profit_total, 0.0),
-                }
-            )
-        else:
-            trade_history.append(
-                {
-                    "id": trade_id,
-                    "pair": symbol,
-                    "type": side,
-                    "status": "Unknown",
-                    "profit": 0.0,
-                }
-            )
-    active_trades = sum(len(v) for v in open_positions.values())
+        trade_history.append(
+            {
+                "id": row.get("trade_pair_id"),
+                "pair": row.get("symbol"),
+                "strategy": row.get("strategy_id"),
+                "status": "Closed",
+                "profit_percentage": float(row.get("profit_percentage", 0)),
+                "profit": profit,
+            }
+        )
+
+        chart_data.append(
+            {
+                "name": str(row.get("trade_pair_id")),
+                "profit": max(profit, 0.0),
+                "loss": max(-profit, 0.0),
+            }
+        )
+
+        entry_ts = row.get("entry_timestamp")
+        exit_ts = row.get("exit_timestamp")
+        if entry_ts and exit_ts:
+            try:
+                dur = (
+                    pd.to_datetime(exit_ts) - pd.to_datetime(entry_ts)
+                ).total_seconds() / 60
+                durations.append(dur)
+            except Exception:
+                pass
+
+    for trade in open_trades:
+        trade_history.append(
+            {
+                "id": trade.get("id"),
+                "pair": trade.get("symbol"),
+                "strategy": trade.get("strategy_id"),
+                "status": "Open",
+                "profit_percentage": 0.0,
+                "profit": 0.0,
+            }
+        )
+
+    active_trades = len(open_trades)
     win_rate = (win_count / closed_count * 100) if closed_count else 0.0
     avg_duration = sum(durations) / len(durations) if durations else 0.0
+
     metrics = {
         "stats": {
             "total_profit": total_profit,
@@ -126,5 +102,4 @@ def _compute_metrics(user_id: int, trades):
 
 @router.get("/dashboard")
 def get_dashboard_data(current_user: dict = Depends(auth.get_current_user)):
-    trades = db.get_trades(current_user["id"], skip=0, limit=1000) or []
-    return _compute_metrics(current_user["id"], trades)
+    return _compute_metrics(current_user["id"])
