@@ -21,6 +21,7 @@ This project contains a simple FastAPI backend for a crypto and stock trading bo
    export REDIS_URL=redis://localhost:6379/0  # optional
    export ENCRYPTION_KEY=<32-byte-base64-key>
    ```
+   A local Redis server must be running for caching to work. If `REDIS_URL` is empty or the server is unavailable, the API will run without caching the market data.
 4. Run the application:
    ```bash
    uvicorn app.main:app --reload
