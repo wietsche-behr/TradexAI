@@ -21,7 +21,7 @@ export default function AssetsPage() {
   return (
     <main className="p-4 sm:p-6 lg:p-8">
       <GlassCard>
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Binance Assets</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white mb-4">Binance Assets</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-gray-600 dark:text-gray-300">
             <thead className="border-b border-gray-400/20 dark:border-white/20">

@@ -32,7 +32,7 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
     <header
       className="sticky top-0 z-20 flex items-center p-4 text-gray-800 dark:text-white bg-white/70 dark:bg-gray-900/50 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow relative"
     >
-      <div className="flex-1 text-2xl font-bold tracking-wider flex items-center space-x-4">
+      <div className="flex-1 text-xl sm:text-2xl font-bold tracking-wider flex items-center space-x-4">
         <span>
           AURA<span className="text-cyan-500 dark:text-cyan-400">BOT</span>
         </span>

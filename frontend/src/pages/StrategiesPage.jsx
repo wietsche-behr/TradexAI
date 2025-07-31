@@ -102,7 +102,7 @@ export default function StrategiesPage() {
   return (
     <main className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 px-2">
-        <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Strategy Management</h2>
+        <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-white">Strategy Management</h2>
         <p className="text-gray-600 dark:text-gray-400">Execute available strategies.</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -112,7 +112,7 @@ export default function StrategiesPage() {
           return (
             <GlassCard key={s.id}>
               <div className="flex justify-between items-start">
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-white">{s.name}</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">{s.name}</h3>
                 <span className={`px-3 py-1 text-xs rounded-full ${s.running ? 'bg-green-500/20 text-green-100' : 'bg-gray-500/20 text-gray-100'}`}>{status}</span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{info.description}</p>
