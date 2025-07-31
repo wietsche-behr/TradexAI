@@ -370,7 +370,22 @@ const ManualTradePanel = ({
   const [tradeType, setTradeType] = useState('buy');
   const [price, setPrice] = useState('');
   const [amount, setAmount] = useState('');
-  const [leverage, setLeverage] = useState(1);
+  const [available, setAvailable] = useState(null);
+
+  useEffect(() => {
+    setPrice(currentPrice.toFixed(2));
+    const id = setInterval(() => setPrice(currentPrice.toFixed(2)), 5000);
+    return () => clearInterval(id);
+  }, [currentPrice]);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/portfolio_value', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setAvailable(data.total_usdt))
+      .catch(() => setAvailable(null));
+  }, [token]);
 
   const handlePlotToggle = (type) => {
     if (type === 'tp') {
@@ -394,18 +409,26 @@ const ManualTradePanel = ({
   };
 
   const total = price && amount ? (price * amount).toFixed(2) : '0.00';
-  const cost = price && amount ? (price * amount / leverage).toFixed(2) : '0.00';
+  const cost = total;
 
   const placeOrder = () => {
     if (!amount) return;
-    const endpoint = tradeType === 'buy' ? '/strategy/test/buy' : '/strategy/test/sell';
+    const endpoint = tradeType === 'buy' ? '/manual/buy' : '/manual/sell';
+    const body = {
+      symbol: activePair.replace('/', ''),
+      amount: parseFloat(amount),
+    };
+    if (tradeType === 'buy') {
+      if (takeProfit) body.take_profit = parseFloat(takeProfit);
+      if (stopLoss) body.stop_loss = parseFloat(stopLoss);
+    }
     fetch(`http://localhost:8000${endpoint}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ symbol: activePair.replace('/', ''), amount: parseFloat(amount) }),
+      body: JSON.stringify(body),
     }).catch(() => {});
   };
 
@@ -438,7 +461,21 @@ const ManualTradePanel = ({
           <span className="absolute right-3 top-6 text-xs text-gray-500">USDT</span>
         </div>
         <div className="relative">
-          <label className="text-xs text-gray-500 dark:text-gray-400">Amount</label>
+          <label className="text-xs text-gray-500 dark:text-gray-400">Pair</label>
+          <select
+            value={activePair}
+            onChange={(e) => setActivePair(e.target.value)}
+            className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md"
+          >
+            {Object.keys(marketData).map((pair) => (
+              <option key={pair} value={pair}>
+                {pair}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="relative">
+          <label className="text-xs text-gray-500 dark:text-gray-400">Amount (USDT)</label>
           <input
             type="number"
             placeholder="0.00"
@@ -446,18 +483,7 @@ const ManualTradePanel = ({
             onChange={(e) => setAmount(e.target.value)}
             className="w-full bg-black/10 dark:bg-white/10 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500"
           />
-          <span className="absolute right-3 top-6 text-xs text-gray-500">{activePair.split('/')[0]}</span>
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 dark:text-gray-400">Leverage: {leverage}x</label>
-          <input
-            type="range"
-            min="1"
-            max="100"
-            value={leverage}
-            onChange={(e) => setLeverage(e.target.value)}
-            className="w-full h-2 bg-gray-500/20 rounded-lg appearance-none cursor-pointer"
-          />
+          <span className="absolute right-3 top-6 text-xs text-gray-500">USDT</span>
         </div>
         <div className="relative">
           <label className="text-xs text-gray-500 dark:text-gray-400">Take Profit</label>
@@ -507,7 +533,7 @@ const ManualTradePanel = ({
           </div>
           <div className="flex justify-between">
             <span>Available:</span>
-            <span>$1,250.75 USDT</span>
+            <span>{available != null ? `${available.toFixed(2)} USDT` : '...'}</span>
           </div>
         </div>
         <button
