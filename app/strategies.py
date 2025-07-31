@@ -623,7 +623,6 @@ async def _run_strategy_loop(
         "continuous_trend_rider_xrp_1m": ("XRPUSDT", Client.KLINE_INTERVAL_1MINUTE),
     }
     symbol, interval = symbol_map[strategy_id]
-    strategy_name = AVAILABLE_STRATEGIES.get(strategy_id, strategy_id)
     min_notional = _get_min_notional(client, symbol)
     trade_amount = amount if amount is not None else min_notional
     if trade_amount < min_notional:
@@ -667,6 +666,12 @@ async def _run_strategy_loop(
                     continue
 
                 OPEN_POSITION[key] = Position(price=entry_price, quantity=executed_qty, commission=entry_commission)
+                # record trade log for the buy event
+                _log(strategy_id, f"BUY {symbol.upper()} qty {executed_qty}", "trade")
+                trade_logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
+                trade_logs.append(f"BUY {symbol.upper()} qty {executed_qty}")
+                if len(trade_logs) > 1000:
+                    trade_logs.pop(0)
                 log_detail(strategy_id, f"Entering trade at {entry_price:.5f} with qty {executed_qty}")
 
             elif signal == "SELL" and position is not None:
@@ -692,6 +697,13 @@ async def _run_strategy_loop(
                 crud.create_completed_trade(trade_log_data, user_id)
 
                 OPEN_POSITION[key] = None
+
+                # record trade log for the sell event
+                _log(strategy_id, f"SELL {symbol.upper()} qty {position.quantity}", "trade")
+                trade_logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
+                trade_logs.append(f"SELL {symbol.upper()} qty {position.quantity}")
+                if len(trade_logs) > 1000:
+                    trade_logs.pop(0)
 
                 profit = (exit_price - position.price) * position.quantity - position.commission - exit_commission
                 log_detail(strategy_id, f"Exiting trade at {exit_price:.5f}. Profit: {profit:.4f}")
