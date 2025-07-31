@@ -6,6 +6,7 @@ import UserManagementPage from './pages/UserManagementPage';
 import StrategiesPage from './pages/StrategiesPage';
 import StrategyLogsPage from './pages/StrategyLogsPage';
 import AssetsPage from './pages/AssetsPage';
+import ChartsPage from './pages/ChartsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { Toaster } from 'react-hot-toast';
@@ -76,6 +77,8 @@ export default function App() {
         );
       case 'assets':
         return <AssetsPage />;
+      case 'charts':
+        return <ChartsPage token={token} />;
       default:
         return <DashboardPage theme={theme} token={token} />;
     }
