@@ -30,7 +30,7 @@ export default function RegisterPage({ onRegistered, goToLogin }) {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-8 rounded shadow-md w-80">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-8 rounded shadow-md w-full max-w-xs">
         <h2 className="text-2xl mb-4 text-center text-gray-800 dark:text-gray-100">Register</h2>
         {error && <p className="text-red-500 mb-2">{error}</p>}
         {success && <p className="text-green-500 mb-2">Registration successful!</p>}

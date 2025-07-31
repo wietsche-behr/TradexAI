@@ -1,9 +1,10 @@
-import { Bell, Settings, User, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
+import { Bell, Settings, User, ChevronDown, Sun, Moon, LogOut, Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function Header({ theme, toggleTheme, setPage, page, onLogout, user, onOpenSettings, token }) {
   const [portfolio, setPortfolio] = useState(null);
   const [display, setDisplay] = useState('USDT');
+  const [mobileMenu, setMobileMenu] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -29,7 +30,7 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
 
   return (
     <header
-      className="sticky top-0 z-20 flex items-center p-4 text-gray-800 dark:text-white bg-white/70 dark:bg-gray-900/50 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow"
+      className="sticky top-0 z-20 flex items-center p-4 text-gray-800 dark:text-white bg-white/70 dark:bg-gray-900/50 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow relative"
     >
       <div className="flex-1 text-2xl font-bold tracking-wider flex items-center space-x-4">
         <span>
@@ -40,6 +41,12 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           className="text-sm px-2 py-1 rounded-md bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 transition"
         >
           {formatValue()}
+        </button>
+        <button
+          onClick={() => setMobileMenu(!mobileMenu)}
+          className="md:hidden p-2 rounded-md hover:bg-black/10 dark:hover:bg-white/20"
+        >
+          {mobileMenu ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
       <nav className="hidden md:flex flex-grow justify-center">
@@ -91,6 +98,17 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           </a>
         </div>
       </nav>
+      {mobileMenu && (
+        <div className="md:hidden absolute left-0 right-0 top-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-md">
+          <div className="flex flex-col p-4 space-y-2">
+            <button onClick={() => { setPage('dashboard'); setMobileMenu(false); }} className={`text-left ${page === 'dashboard' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Dashboard</button>
+            <button onClick={() => { setPage('users'); setMobileMenu(false); }} className={`text-left ${page === 'users' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>User Management</button>
+            <button onClick={() => { setPage('strategies'); setMobileMenu(false); }} className={`text-left ${page === 'strategies' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Strategies</button>
+            <button onClick={() => { setPage('assets'); setMobileMenu(false); }} className={`text-left ${page === 'assets' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Assets</button>
+            <button onClick={() => { setPage('charts'); setMobileMenu(false); }} className={`text-left ${page === 'charts' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Charts</button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center space-x-4">
           <button
             onClick={toggleTheme}
