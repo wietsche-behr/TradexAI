@@ -132,6 +132,7 @@ class Position:
     price: float
     quantity: float
     commission: float
+    trade_id: int | None = None
 
 OPEN_POSITION: dict[tuple[int, str], Position | None] = {}
 
@@ -665,7 +666,24 @@ async def _run_strategy_loop(
                     await asyncio.sleep(5)
                     continue
 
-                OPEN_POSITION[key] = Position(price=entry_price, quantity=executed_qty, commission=entry_commission)
+                trade = crud.create_trade(
+                    schemas.TradeCreate(
+                        symbol=symbol,
+                        side="BUY",
+                        quantity=executed_qty,
+                        price=entry_price,
+                        strategy_id=strategy_id,
+                        status="open",
+                    ),
+                    user_id,
+                )
+                trade_id = trade.get("id") if trade else None
+                OPEN_POSITION[key] = Position(
+                    price=entry_price,
+                    quantity=executed_qty,
+                    commission=entry_commission,
+                    trade_id=trade_id,
+                )
                 # record trade log for the buy event
                 _log(strategy_id, f"BUY {symbol.upper()} qty {executed_qty}", "trade")
                 trade_logs = GLOBAL_TRADE_LOGS.setdefault(user_id, [])
@@ -684,6 +702,34 @@ async def _run_strategy_loop(
                     log_detail(strategy_id, f"ERROR placing SELL order: {exc}")
                     await asyncio.sleep(5)
                     continue
+
+                sell_trade = crud.create_trade(
+                    schemas.TradeCreate(
+                        symbol=symbol,
+                        side="SELL",
+                        quantity=position.quantity,
+                        price=exit_price,
+                        strategy_id=strategy_id,
+                        status="closed",
+                        related_trade_id=position.trade_id,
+                    ),
+                    user_id,
+                )
+                sell_trade_id = sell_trade.get("id") if sell_trade else None
+
+                if position.trade_id:
+                    crud.update_trade(
+                        position.trade_id,
+                        schemas.TradeCreate(
+                            symbol=symbol,
+                            side="BUY",
+                            quantity=position.quantity,
+                            price=position.price,
+                            strategy_id=strategy_id,
+                            status="closed",
+                            related_trade_id=sell_trade_id,
+                        ),
+                    )
 
                 trade_log_data = schemas.CompletedTradeCreate(
                     strategy_id=strategy_id,
