@@ -6,23 +6,45 @@ const MarketInfo = ({ data }) => (
   <div className="flex-grow grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
     <div>
       <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
-      <p className={`text-lg font-semibold ${data.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>{data.price.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</p>
+      <p
+        className={`text-lg font-semibold ${
+          data.change >= 0 ? 'text-green-500' : 'text-red-500'
+        }`}
+      >
+        {data.price?.toLocaleString('en-US', {
+          style: 'currency',
+          currency: 'USD',
+        })}
+      </p>
     </div>
     <div>
       <p className="text-sm text-gray-500 dark:text-gray-400">24h Change</p>
-      <p className={`text-lg font-semibold ${data.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>{data.change > 0 ? '+' : ''}{data.change}%</p>
+      <p
+        className={`text-lg font-semibold ${
+          data.change >= 0 ? 'text-green-500' : 'text-red-500'
+        }`}
+      >
+        {data.change > 0 ? '+' : ''}
+        {data.change ?? 0}%
+      </p>
     </div>
     <div>
       <p className="text-sm text-gray-500 dark:text-gray-400">24h High</p>
-      <p className="text-lg font-semibold text-gray-800 dark:text-white">{data.high.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</p>
+      <p className="text-lg font-semibold text-gray-800 dark:text-white">
+        {data.high?.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+      </p>
     </div>
     <div>
       <p className="text-sm text-gray-500 dark:text-gray-400">24h Low</p>
-      <p className="text-lg font-semibold text-gray-800 dark:text-white">{data.low.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</p>
+      <p className="text-lg font-semibold text-gray-800 dark:text-white">
+        {data.low?.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+      </p>
     </div>
     <div>
       <p className="text-sm text-gray-500 dark:text-gray-400">24h Volume</p>
-      <p className="text-lg font-semibold text-gray-800 dark:text-white">{(data.volume / 1000).toFixed(1)}k</p>
+      <p className="text-lg font-semibold text-gray-800 dark:text-white">
+        {((data.volume ?? 0) / 1000).toFixed(1)}k
+      </p>
     </div>
   </div>
 );
@@ -54,7 +76,13 @@ export default function ChartsPage({ theme }) {
     const symbol = activePair.replace('/', '');
     fetch(`http://localhost:8000/klines?pair=${symbol}&interval=${intervalMap[activeInterval]}`)
       .then(r => r.json())
-      .then(setInfo)
+      .then(data => {
+        if (data && !data.error) {
+          setInfo(data);
+        } else {
+          setInfo(null);
+        }
+      })
       .catch(() => setInfo(null));
   };
 
