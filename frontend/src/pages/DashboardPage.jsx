@@ -9,7 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Activity, DollarSign, Shield, Clock, Zap } from 'lucide-react';
+import { Activity, DollarSign, Shield, Clock } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 
 
@@ -21,7 +21,7 @@ const StatCard = ({ icon, title, value, change, changeType }) => {
         <div className="p-3 bg-black/5 dark:bg-white/10 rounded-full border border-black/10 dark:border-white/20">{icon}</div>
         <div>
           <p className="text-gray-600 dark:text-gray-300 text-sm">{title}</p>
-          <p className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-white">{value}</p>
+          <p className="text-2xl font-semibold text-gray-800 dark:text-white">{value}</p>
           {change && <p className={`text-sm ${changeColor}`}>{change}</p>}
         </div>
       </div>
@@ -33,10 +33,10 @@ const MainChart = ({ theme, data }) => {
   const axisColor = theme === 'dark' ? '#9ca3af' : '#4b5563';
   const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
   return (
-    <GlassCard className="col-span-12 lg:col-span-8 h-[450px] flex flex-col">
+    <GlassCard className="col-span-12 lg:col-span-7 h-[350px] flex flex-col">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">Performance Overview</h3>
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Performance Overview</h3>
           <p className="text-gray-600 dark:text-gray-400">Last 24 hours</p>
         </div>
         <div className="flex space-x-2">
@@ -73,37 +73,55 @@ const MainChart = ({ theme, data }) => {
 };
 
 const BotControl = ({ token }) => {
-  const [config, setConfig] = useState(null);
+  const [strategies, setStrategies] = useState([]);
+  const [tradeLogs, setTradeLogs] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/bot', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then(setConfig)
-      .catch(() => setConfig(null));
+    const fetchData = () => {
+      fetch('http://localhost:8000/strategies', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) =>
+          setStrategies((data.strategies || []).filter((s) => s.running))
+        )
+        .catch(() => setStrategies([]));
+
+      fetch('http://localhost:8000/trade_logs', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => setTradeLogs(data.logs || []))
+        .catch(() => setTradeLogs([]));
+    };
+    fetchData();
+    const id = setInterval(fetchData, 2000);
+    return () => clearInterval(id);
   }, [token]);
 
-  const toggleBot = () => {
-    if (!config) return;
-    fetch('http://localhost:8000/bot', {
+  const stopStrategy = (id) => {
+    fetch(`http://localhost:8000/strategy/${id}/stop`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ...config, is_active: !config.is_active }),
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.json())
-      .then(setConfig)
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        setStrategies((prev) => prev.filter((s) => s.id !== id));
+      })
       .catch(() => {});
   };
 
-  const isBotActive = config ? config.is_active : false;
+  const parseTradeLog = (log) => {
+    const m = log.match(/(BUY|SELL)\s+(\w+)\s+qty\s+([\d.]+)/i);
+    if (!m) return { type: '', pair: '', qty: '', raw: log };
+    return { type: m[1].toUpperCase(), pair: m[2].toUpperCase(), qty: m[3] };
+  };
+  const isBotActive = strategies.length > 0;
+
   return (
-    <GlassCard className="col-span-12 lg:col-span-4 h-full flex flex-col justify-between">
-      <div>
-        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white mb-4">Bot Control</h3>
+    <GlassCard className="col-span-12 lg:col-span-5 h-[350px] flex flex-col">
+      <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Bot Control</h3>
+      <div className="flex-grow overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <span className="text-gray-600 dark:text-gray-300">Status</span>
           <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${isBotActive ? 'bg-green-500/30 text-green-300' : 'bg-red-500/30 text-red-300'}`}>
@@ -111,36 +129,74 @@ const BotControl = ({ token }) => {
             <span>{isBotActive ? 'Active' : 'Stopped'}</span>
           </div>
         </div>
-        {config ? (
-          <div className="space-y-3 text-gray-700 dark:text-gray-200">
-            <p><strong>Strategy:</strong> {config.strategy}</p>
-            <p><strong>Risk Level:</strong> {config.risk_level}</p>
-            <p><strong>Market:</strong> {config.market}</p>
+        <div className="mb-4">
+          <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Running Strategies</h4>
+          {strategies.length ? (
+            <ul className="space-y-2">
+              {strategies.map((s) => (
+                <li key={s.id} className="flex justify-between items-center text-sm">
+                  <span className="text-gray-700 dark:text-gray-200">{s.name}</span>
+                  <button
+                    onClick={() => stopStrategy(s.id)}
+                    className="px-2 py-1 rounded bg-red-500/80 text-white"
+                  >
+                    Stop
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500 text-sm">No strategies running</p>
+          )}
+        </div>
+        <div>
+          <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Trade Logs</h4>
+          <div className="max-h-40 overflow-y-auto">
+            <table className="w-full text-left text-xs text-gray-700 dark:text-gray-100">
+              <thead className="border-b border-gray-400/20 dark:border-white/20">
+                <tr>
+                  <th className="p-1">Type</th>
+                  <th className="p-1">Pair</th>
+                  <th className="p-1">Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tradeLogs.map((log, i) => {
+                  const t = parseTradeLog(log);
+                  return (
+                    <tr key={i} className="border-b border-gray-400/10 dark:border-white/10">
+                      <td
+                        className={`p-1 font-bold ${t.type === 'BUY' ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}
+                      >
+                        {t.type || log}
+                      </td>
+                      <td className="p-1">{t.pair}</td>
+                      <td className="p-1">{t.qty}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <p className="text-gray-500">No configuration</p>
-        )}
+        </div>
       </div>
-      <button onClick={toggleBot} className={`w-full py-3 mt-6 rounded-lg text-white font-bold text-lg transition-all duration-300 flex items-center justify-center space-x-2 ${isBotActive ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30' : 'bg-green-500 hover:bg-green-600 shadow-green-500/30'} shadow-lg`}>
-        <Zap size={20}/>
-        <span>{isBotActive ? 'STOP BOT' : 'START BOT'}</span>
-      </button>
     </GlassCard>
   );
 };
 
 const TradeHistoryTable = ({ tradeHistory }) => (
   <GlassCard className="col-span-12">
-    <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white mb-4">Trade History</h3>
+    <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Trade History</h3>
     <div className="overflow-x-auto">
       <table className="w-full text-left text-gray-600 dark:text-gray-300">
         <thead className="border-b border-gray-400/20 dark:border-white/20">
           <tr>
             <th className="p-3">ID</th>
             <th className="p-3">Pair</th>
-            <th className="p-3">Type</th>
+            <th className="p-3">Strategy</th>
             <th className="p-3">Status</th>
-            <th className="p-3 text-right">Profit/Loss</th>
+            <th className="p-3 text-right">Profit %</th>
+            <th className="p-3 text-right">Profit $</th>
           </tr>
         </thead>
         <tbody>
@@ -148,9 +204,10 @@ const TradeHistoryTable = ({ tradeHistory }) => (
             <tr key={trade.id} className="border-b border-gray-400/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               <td className="p-3 font-mono text-xs">{trade.id}</td>
               <td className="p-3 font-semibold text-gray-800 dark:text-white">{trade.pair}</td>
-              <td className={`p-3 font-bold ${trade.type === 'BUY' ? 'text-cyan-500 dark:text-cyan-400' : 'text-fuchsia-500 dark:text-fuchsia-400'}`}>{trade.type}</td>
+              <td className="p-3">{trade.strategy}</td>
               <td className="p-3"><span className={`px-2 py-1 text-xs rounded-full ${trade.status === 'Open' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-gray-500/20 text-gray-300'}`}>{trade.status}</span></td>
-              <td className={`p-3 text-right font-semibold ${trade.profit >= 0 ? 'text-green-500 dark:text-green-400' : 'text-red-400'}`}>{trade.profit >= 0 ? `+$${trade.profit.toFixed(2)}` : `-$${Math.abs(trade.profit).toFixed(2)}`}</td>
+              <td className="p-3 text-right font-semibold">{trade.profit_percentage.toFixed(2)}%</td>
+              <td className={`p-3 text-right font-semibold ${trade.profit >= 0 ? 'text-green-500 dark:text-green-400' : 'text-red-400'}`}>${trade.profit.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
