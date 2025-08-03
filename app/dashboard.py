@@ -11,9 +11,15 @@ router = APIRouter()
 
 def _compute_metrics(user_id: int, trades=None):
     """Compute dashboard metrics using ``trade_summary_view``."""
-    summary = db.get_trade_summary(user_id, skip=0, limit=1000) or []
+    try:
+        summary = db.get_trade_summary(user_id, skip=0, limit=1000) or []
+    except Exception:
+        summary = []
     if trades is None:
-        trades = db.get_trades(user_id, skip=0, limit=1000) or []
+        try:
+            trades = db.get_trades(user_id, skip=0, limit=1000) or []
+        except Exception:
+            trades = []
 
     buy_trades = [t for t in trades if (t.get("side") or "").lower() == "buy"]
     paired_ids = {s.get("entry_trade_id") for s in summary if s.get("entry_trade_id")}
