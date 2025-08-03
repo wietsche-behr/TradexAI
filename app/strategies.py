@@ -7,7 +7,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 import time
 
-from jose import jwt
+from jose import jwt, JWTError
 
 from . import auth
 from .supabase_db import db
@@ -806,6 +806,15 @@ async def start_strategy(
     existing = db.get_active_user_strategy(current_user["id"], strategy_id)
     if existing:
         raise HTTPException(status_code=400, detail="Strategy already running")
+    if refresh_token is None:
+        raise HTTPException(status_code=400, detail="refresh_token is required")
+    try:
+        payload = jwt.decode(refresh_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username = payload.get("sub")
+        if username != current_user["username"]:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
     cls = STRATEGY_CLASSES.get(strategy_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Unknown strategy")
