@@ -235,7 +235,13 @@ export default function DashboardPage({ theme, token }) {
       .then((data) => {
         setChartData(data.chart_data || []);
         setTradeHistory(data.trade_history || []);
-        setStats(data.stats || {});
+        const s = data.stats || {};
+        setStats({
+          total_profit: Number(s.total_profit) || 0,
+          win_rate: Number(s.win_rate) || 0,
+          active_trades: s.active_trades ?? 0,
+          avg_trade_duration: Number(s.avg_trade_duration) || 0,
+        });
       })
       .catch(() => {});
   }, [token]);
