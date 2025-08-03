@@ -874,7 +874,7 @@ async def stop_strategy(strategy_id: str, current_user: dict = Depends(auth.get_
 def list_strategies(current_user: dict = Depends(auth.get_current_user)):
     """Return available strategies and running status."""
     active_runs = {
-        run["strategy_id"]
+        run["strategy_id"]: run.get("created_at")
         for run in db.get_active_user_strategies(current_user["id"])
     }
     results = []
@@ -884,5 +884,6 @@ def list_strategies(current_user: dict = Depends(auth.get_current_user)):
             "name": name,
             "running": (current_user["id"], sid) in RUNNING_TASKS or sid in active_runs,
             "profit": STRATEGY_PROFITS.get((current_user["id"], sid), 0.0),
+            "start_time": active_runs.get(sid),
         })
     return {"strategies": results}
