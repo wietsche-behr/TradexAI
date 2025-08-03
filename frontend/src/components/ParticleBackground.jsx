@@ -11,7 +11,11 @@ export default function ParticleBackground({ theme }) {
 
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
-      canvas.height = document.body.scrollHeight;
+      // Limit the canvas height to the viewport to avoid creating an overly
+      // large drawing surface when the page grows. Using the scroll height
+      // caused the particle system to eventually render thousands of
+      // particles, overwhelming the canvas and producing a large white blur.
+      canvas.height = window.innerHeight;
     };
 
     const particleColor = theme === 'dark'
@@ -43,7 +47,12 @@ export default function ParticleBackground({ theme }) {
 
     function init() {
       particlesArray = [];
-      let numberOfParticles = (canvas.width * canvas.height) / 12000;
+      // Keep the particle count at a reasonable level to maintain smooth
+      // performance even on large screens.
+      const numberOfParticles = Math.min(
+        (canvas.width * canvas.height) / 12000,
+        200
+      );
       for (let i = 0; i < numberOfParticles; i++) {
         let size = Math.random() * 2 + 1;
         let x = Math.random() * (window.innerWidth - size * 2);
@@ -81,7 +90,7 @@ export default function ParticleBackground({ theme }) {
 
     function animate() {
       if (!canvas) return;
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (particlesArray) {
         for (let i = 0; i < particlesArray.length; i++) {
           particlesArray[i].update();
@@ -101,13 +110,10 @@ export default function ParticleBackground({ theme }) {
     animate();
 
     window.addEventListener('resize', handleResize);
-    const observer = new MutationObserver(handleResize);
-    observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
-      observer.disconnect();
     };
   }, [theme]);
 
