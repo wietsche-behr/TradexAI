@@ -21,10 +21,6 @@ def _compute_metrics(user_id: int, trades=None):
         except Exception:
             trades = []
 
-    buy_trades = [t for t in trades if (t.get("side") or "").lower() == "buy"]
-    paired_ids = {s.get("entry_trade_id") for s in summary if s.get("entry_trade_id")}
-    open_trades = [t for t in buy_trades if t.get("id") not in paired_ids]
-
     trade_history: list[dict] = []
     chart_data: list[dict] = []
     durations: list[float] = []
@@ -33,54 +29,123 @@ def _compute_metrics(user_id: int, trades=None):
     closed_count = 0
     win_count = 0
 
-    for row in summary:
-        profit = float(row.get("profit_amount", 0))
-        total_profit += profit
-        closed_count += 1
-        if profit > 0:
-            win_count += 1
+    if summary:
+        buy_trades = [t for t in trades if (t.get("side") or "").lower() == "buy"]
+        paired_ids = {s.get("entry_trade_id") for s in summary if s.get("entry_trade_id")}
+        open_trades = [t for t in buy_trades if t.get("id") not in paired_ids]
 
-        trade_history.append(
-            {
-                "id": row.get("trade_pair_id"),
-                "pair": row.get("symbol"),
-                "strategy": row.get("strategy_id"),
-                "status": "Closed",
-                "profit_percentage": float(row.get("profit_percentage", 0)),
-                "profit": profit,
-            }
-        )
+        for row in summary:
+            profit = float(row.get("profit_amount", 0))
+            total_profit += profit
+            closed_count += 1
+            if profit > 0:
+                win_count += 1
 
-        chart_data.append(
-            {
-                "name": str(row.get("trade_pair_id")),
-                "profit": max(profit, 0.0),
-                "loss": max(-profit, 0.0),
-            }
-        )
+            trade_history.append(
+                {
+                    "id": row.get("trade_pair_id"),
+                    "pair": row.get("symbol"),
+                    "strategy": row.get("strategy_id"),
+                    "status": "Closed",
+                    "profit_percentage": float(row.get("profit_percentage", 0)),
+                    "profit": profit,
+                }
+            )
 
-        entry_ts = row.get("entry_timestamp")
-        exit_ts = row.get("exit_timestamp")
-        if entry_ts and exit_ts:
-            try:
-                dur = (
-                    pd.to_datetime(exit_ts) - pd.to_datetime(entry_ts)
-                ).total_seconds() / 60
-                durations.append(dur)
-            except Exception:
-                pass
+            chart_data.append(
+                {
+                    "name": str(row.get("trade_pair_id")),
+                    "profit": max(profit, 0.0),
+                    "loss": max(-profit, 0.0),
+                }
+            )
 
-    for trade in open_trades:
-        trade_history.append(
-            {
-                "id": trade.get("id"),
-                "pair": trade.get("symbol"),
-                "strategy": trade.get("strategy_id"),
-                "status": "Open",
-                "profit_percentage": 0.0,
-                "profit": 0.0,
-            }
-        )
+            entry_ts = row.get("entry_timestamp")
+            exit_ts = row.get("exit_timestamp")
+            if entry_ts and exit_ts:
+                try:
+                    dur = (
+                        pd.to_datetime(exit_ts) - pd.to_datetime(entry_ts)
+                    ).total_seconds() / 60
+                    durations.append(dur)
+                except Exception:
+                    pass
+
+        for trade in open_trades:
+            trade_history.append(
+                {
+                    "id": trade.get("id"),
+                    "pair": trade.get("symbol"),
+                    "strategy": trade.get("strategy_id"),
+                    "status": "Open",
+                    "profit_percentage": 0.0,
+                    "profit": 0.0,
+                }
+            )
+
+    else:
+        # Fallback when ``trade_summary_view`` is unavailable
+        trade_map = {t.get("id"): t for t in trades}
+        open_trades = []
+        for trade in trades:
+            side = (trade.get("side") or "").lower()
+            status = (trade.get("status") or "").lower()
+            if side == "buy" and status == "closed" and trade.get("related_trade_id"):
+                sell = trade_map.get(trade.get("related_trade_id"))
+                if sell:
+                    qty = float(trade.get("quantity", 0))
+                    buy_price = float(trade.get("price", 0))
+                    sell_price = float(sell.get("price", 0))
+                    profit = (sell_price - buy_price) * qty
+                    fee = FEE_RATE * qty * (buy_price + sell_price)
+                    profit -= fee
+                    total_profit += profit
+                    closed_count += 1
+                    if profit > 0:
+                        win_count += 1
+                    trade_history.append(
+                        {
+                            "id": trade.get("id"),
+                            "pair": trade.get("symbol"),
+                            "strategy": trade.get("strategy_id"),
+                            "status": "Closed",
+                            "profit_percentage": 0.0,
+                            "profit": profit,
+                        }
+                    )
+                    chart_data.append(
+                        {
+                            "name": str(trade.get("id")),
+                            "profit": max(profit, 0.0),
+                            "loss": max(-profit, 0.0),
+                        }
+                    )
+
+                    entry_ts = trade.get("timestamp") or trade.get("created_at")
+                    exit_ts = sell.get("timestamp") or sell.get("created_at")
+                    if entry_ts and exit_ts:
+                        try:
+                            dur = (
+                                pd.to_datetime(exit_ts) - pd.to_datetime(entry_ts)
+                            ).total_seconds() / 60
+                            durations.append(dur)
+                        except Exception:
+                            pass
+            elif side == "buy" and status != "closed":
+                open_trades.append(trade)
+
+        # Add open trades to history
+        for trade in open_trades:
+            trade_history.append(
+                {
+                    "id": trade.get("id"),
+                    "pair": trade.get("symbol"),
+                    "strategy": trade.get("strategy_id"),
+                    "status": "Open",
+                    "profit_percentage": 0.0,
+                    "profit": 0.0,
+                }
+            )
 
     active_trades = len(open_trades)
     win_rate = (win_count / closed_count * 100) if closed_count else 0.0
