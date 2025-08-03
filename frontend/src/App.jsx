@@ -131,8 +131,9 @@ export default function App() {
         return <AssetsPage />;
       case 'charts':
         return <ChartsPage theme={theme} />;
+      case 'manual':
       case 'manual_trade':
-        return <ManualTradePage theme={theme} />;
+        return <ManualTradePage theme={theme} token={token} />;
       default:
         return <DashboardPage theme={theme} token={token} />;
     }

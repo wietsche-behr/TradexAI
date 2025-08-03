@@ -49,8 +49,8 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           {mobileMenu ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
-      <nav className="hidden md:flex flex-grow justify-center">
-        <div className="flex items-center space-x-6 bg-gray-500/10 dark:bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-gray-400/20 dark:border-white/20">
+      <nav className="hidden md:flex flex-grow justify-center overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-4 md:gap-6 bg-gray-500/10 dark:bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-gray-400/20 dark:border-white/20">
           <a
             href="#"
             onClick={() => setPage('dashboard')}
@@ -98,9 +98,9 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
           </a>
           <a
             href="#"
-            onClick={() => setPage('manual_trade')}
+            onClick={() => setPage('manual')}
             className={`${
-              page === 'manual_trade' ? 'text-cyan-600 dark:text-cyan-400' : ''
+              page === 'manual' || page === 'manual_trade' ? 'text-cyan-600 dark:text-cyan-400' : ''
             } hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors`}
           >
             Manual Trading
@@ -115,7 +115,7 @@ export default function Header({ theme, toggleTheme, setPage, page, onLogout, us
             <button onClick={() => { setPage('strategies'); setMobileMenu(false); }} className={`text-left ${page === 'strategies' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Strategies</button>
             <button onClick={() => { setPage('assets'); setMobileMenu(false); }} className={`text-left ${page === 'assets' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Assets</button>
             <button onClick={() => { setPage('charts'); setMobileMenu(false); }} className={`text-left ${page === 'charts' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Charts</button>
-            <button onClick={() => { setPage('manual_trade'); setMobileMenu(false); }} className={`text-left ${page === 'manual_trade' ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Manual Trading</button>
+            <button onClick={() => { setPage('manual'); setMobileMenu(false); }} className={`text-left ${(page === 'manual' || page === 'manual_trade') ? 'text-cyan-600 dark:text-cyan-400' : ''} hover:text-cyan-600 dark:hover:text-cyan-400`}>Manual Trading</button>
           </div>
         </div>
       )}
