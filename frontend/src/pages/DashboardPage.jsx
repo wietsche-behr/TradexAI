@@ -74,6 +74,26 @@ const MainChart = ({ theme, data }) => {
 
 const BotControl = ({ token }) => {
   const [strategies, setStrategies] = useState([]);
+  const [now, setNow] = useState(Date.now());
+
+  const sortStrategies = (list) =>
+    [...list].sort((a, b) => {
+      const aTime = a.start_time ? new Date(a.start_time).getTime() : 0;
+      const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  const formatDuration = (ms) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600)
+      .toString()
+      .padStart(2, '0');
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+      .toString()
+      .padStart(2, '0');
+    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  };
 
   useEffect(() => {
     const fetchData = () => {
@@ -81,13 +101,18 @@ const BotControl = ({ token }) => {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => res.json())
-        .then((data) => setStrategies(data.strategies || []))
+        .then((data) => setStrategies(sortStrategies(data.strategies || [])))
         .catch(() => setStrategies([]));
     };
     fetchData();
     const id = setInterval(fetchData, 2000);
     return () => clearInterval(id);
   }, [token]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const stopStrategy = (id) => {
     fetch(`http://localhost:8000/strategy/${id}/stop`, {
@@ -96,7 +121,13 @@ const BotControl = ({ token }) => {
     })
       .then((res) => {
         if (!res.ok) throw new Error();
-        setStrategies((prev) => prev.map((s) => (s.id === id ? { ...s, running: false, profit: 0 } : s)));
+        setStrategies((prev) =>
+          sortStrategies(
+            prev.map((s) =>
+              s.id === id ? { ...s, running: false, profit: 0, start_time: null } : s
+            )
+          )
+        );
       })
       .catch(() => {});
   };
@@ -121,6 +152,7 @@ const BotControl = ({ token }) => {
                 <th className="p-2">Strategy</th>
                 <th className="p-2 text-right">Profit</th>
                 <th className="p-2">Status</th>
+                <th className="p-2 text-right">Time</th>
                 <th className="p-2 text-right">Action</th>
               </tr>
             </thead>
@@ -131,6 +163,9 @@ const BotControl = ({ token }) => {
                   <td className={`p-2 text-right font-semibold ${s.profit >= 0 ? 'text-green-500 dark:text-green-400' : 'text-red-400'}`}>${s.profit.toFixed(2)}</td>
                   <td className="p-2">
                     <span className={`px-2 py-1 text-xs rounded-full ${s.running ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-300'}`}>{s.running ? 'Running' : 'Stopped'}</span>
+                  </td>
+                  <td className="p-2 text-right">
+                    {s.running && s.start_time ? formatDuration(now - new Date(s.start_time)) : '-'}
                   </td>
                   <td className="p-2 text-right">
                     {s.running && (
