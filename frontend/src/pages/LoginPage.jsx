@@ -22,7 +22,7 @@ export default function LoginPage({ onLogin, theme, goToRegister }) {
         throw new Error(data.detail || 'Invalid credentials');
       }
       const data = await res.json();
-      onLogin(data.access_token);
+      onLogin(data.access_token, data.refresh_token);
     } catch (err) {
       setError(err.message || 'Login failed');
     }
