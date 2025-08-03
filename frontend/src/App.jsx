@@ -18,6 +18,7 @@ export default function App() {
   const [page, setPage] = useState('dashboard');
   const [authPage, setAuthPage] = useState('login');
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [refreshToken, setRefreshToken] = useState(localStorage.getItem('refresh_token'));
   const [user, setUser] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [logStrategy, setLogStrategy] = useState(null);
@@ -36,27 +37,77 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => {
+          if (res.status === 401 && refreshToken) {
+            return fetch('http://localhost:8000/token/refresh', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: refreshToken }),
+            })
+              .then((r) => {
+                if (!r.ok) throw new Error('refresh_failed');
+                return r.json();
+              })
+              .then((data) => {
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('refresh_token', data.refresh_token);
+                setToken(data.access_token);
+                setRefreshToken(data.refresh_token);
+                return fetch('http://localhost:8000/users/me', {
+                  headers: { Authorization: `Bearer ${data.access_token}` },
+                });
+              });
+          }
           if (!res.ok) throw new Error('unauthorized');
-          return res.json();
+          return res;
         })
+        .then((res) => res.json())
         .then((data) => setUser(data))
         .catch(() => {
           localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
           setToken(null);
+          setRefreshToken(null);
           setUser(null);
         });
     }
-  }, [token]);
+  }, [token, refreshToken]);
 
-  const handleLogin = (tok) => {
+  useEffect(() => {
+    if (!token || !refreshToken) return;
+    const interval = setInterval(() => {
+      fetch('http://localhost:8000/token/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error('refresh_failed');
+          return res.json();
+        })
+        .then((data) => {
+          localStorage.setItem('token', data.access_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
+          setToken(data.access_token);
+          setRefreshToken(data.refresh_token);
+        })
+        .catch(handleLogout);
+    }, 25 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [token, refreshToken]);
+
+  const handleLogin = (tok, refTok) => {
     localStorage.setItem('token', tok);
+    localStorage.setItem('refresh_token', refTok);
     setToken(tok);
+    setRefreshToken(refTok);
     setPage('dashboard');
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
     setToken(null);
+    setRefreshToken(null);
     setUser(null);
   };
 

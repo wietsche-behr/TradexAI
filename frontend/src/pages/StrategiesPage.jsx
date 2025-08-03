@@ -44,6 +44,7 @@ export default function StrategiesPage() {
   const [tradeAmounts, setTradeAmounts] = useState({});
   const [selected, setSelected] = useState(null);
   const token = localStorage.getItem('token');
+  const refreshToken = localStorage.getItem('refresh_token');
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem('runningStrategyAmounts') || '{}');
@@ -76,7 +77,7 @@ export default function StrategiesPage() {
     const options = { method: 'POST', headers: { Authorization: `Bearer ${token}` } };
     if (!running) {
       options.headers['Content-Type'] = 'application/json';
-      options.body = JSON.stringify({ amount: parseFloat(amount) });
+      options.body = JSON.stringify({ amount: parseFloat(amount), refresh_token: refreshToken });
     }
     fetch(`http://localhost:8000${endpoint}`, options)
       .then((res) => {

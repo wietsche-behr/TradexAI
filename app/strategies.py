@@ -5,6 +5,9 @@ import asyncio
 from datetime import datetime
 from contextvars import ContextVar
 from dataclasses import dataclass
+import time
+
+from jose import jwt, JWTError
 
 from . import auth
 from .supabase_db import db
@@ -121,6 +124,7 @@ def atr(df: pd.DataFrame, length: int) -> pd.Series:
 
 # --- RUNNING STRATEGIES ---
 # keep track of running background tasks and trade history
+# Each task stores metadata including tokens for refreshing credentials
 RUNNING_TASKS: dict[tuple[int, str], dict] = {}
 
 # track the currently open position for each user/strategy.  None indicates no
@@ -607,6 +611,27 @@ def get_all_trade_logs(current_user: dict = Depends(auth.get_current_user)):
     return {"logs": GLOBAL_TRADE_LOGS.get(current_user["id"], [])}
 
 
+def _ensure_strategy_tokens(key: tuple[int, str]) -> None:
+    """Refresh the stored access token for a running strategy if needed."""
+    data = RUNNING_TASKS.get(key)
+    if not data:
+        return
+    refresh = data.get("refresh_token")
+    exp = data.get("expires", 0)
+    if not refresh:
+        return
+    # if the access token is expiring within the next minute, refresh it
+    if exp - time.time() > 60:
+        return
+    refreshed = auth.refresh_token(refresh_token=refresh)
+    data["access_token"] = refreshed["access_token"]
+    data["refresh_token"] = refreshed["refresh_token"]
+    payload = jwt.decode(
+        refreshed["access_token"], auth.SECRET_KEY, algorithms=[auth.ALGORITHM]
+    )
+    data["expires"] = payload.get("exp", 0)
+
+
 async def _run_strategy_loop(
     strategy,
     client,
@@ -636,6 +661,7 @@ async def _run_strategy_loop(
     token = current_user_ctx.set(user_id)
 
     while True:
+        _ensure_strategy_tokens(key)
         try:
             klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
             if not klines:
@@ -770,6 +796,8 @@ async def start_strategy(
     strategy_id: str,
     amount: float | None = Body(None, embed=True),
     current_user: dict = Depends(auth.get_current_user),
+    token: str = Depends(auth.oauth2_scheme),
+    refresh_token: str | None = Body(None, embed=True),
 ):
     strategy_id = strategy_id.lower()
     key = (current_user["id"], strategy_id)
@@ -778,6 +806,15 @@ async def start_strategy(
     existing = db.get_active_user_strategy(current_user["id"], strategy_id)
     if existing:
         raise HTTPException(status_code=400, detail="Strategy already running")
+    if refresh_token is None:
+        raise HTTPException(status_code=400, detail="refresh_token is required")
+    try:
+        payload = jwt.decode(refresh_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username = payload.get("sub")
+        if username != current_user["username"]:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
     cls = STRATEGY_CLASSES.get(strategy_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Unknown strategy")
@@ -787,7 +824,15 @@ async def start_strategy(
     task = asyncio.create_task(
         _run_strategy_loop(strategy, client, current_user["id"], strategy_id, amount)
     )
-    RUNNING_TASKS[key] = {"task": task, "run_id": run["id"], "amount": amount}
+    exp_payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+    RUNNING_TASKS[key] = {
+        "task": task,
+        "run_id": run["id"],
+        "amount": amount,
+        "access_token": token,
+        "refresh_token": refresh_token,
+        "expires": exp_payload.get("exp", 0),
+    }
     OPEN_POSITION.setdefault(key, None)
     TRADE_HISTORY.setdefault(key, [])
     token = current_user_ctx.set(current_user["id"])
