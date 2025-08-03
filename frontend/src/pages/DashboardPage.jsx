@@ -74,7 +74,6 @@ const MainChart = ({ theme, data }) => {
 
 const BotControl = ({ token }) => {
   const [strategies, setStrategies] = useState([]);
-  const [tradeLogs, setTradeLogs] = useState([]);
 
   useEffect(() => {
     const fetchData = () => {
@@ -82,17 +81,8 @@ const BotControl = ({ token }) => {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => res.json())
-        .then((data) =>
-          setStrategies((data.strategies || []).filter((s) => s.running))
-        )
+        .then((data) => setStrategies(data.strategies || []))
         .catch(() => setStrategies([]));
-
-      fetch('http://localhost:8000/trade_logs', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => setTradeLogs(data.logs || []))
-        .catch(() => setTradeLogs([]));
     };
     fetchData();
     const id = setInterval(fetchData, 2000);
@@ -106,21 +96,16 @@ const BotControl = ({ token }) => {
     })
       .then((res) => {
         if (!res.ok) throw new Error();
-        setStrategies((prev) => prev.filter((s) => s.id !== id));
+        setStrategies((prev) => prev.map((s) => (s.id === id ? { ...s, running: false, profit: 0 } : s)));
       })
       .catch(() => {});
   };
 
-  const parseTradeLog = (log) => {
-    const m = log.match(/(BUY|SELL)\s+(\w+)\s+qty\s+([\d.]+)/i);
-    if (!m) return { type: '', pair: '', qty: '', raw: log };
-    return { type: m[1].toUpperCase(), pair: m[2].toUpperCase(), qty: m[3] };
-  };
-  const isBotActive = strategies.length > 0;
+  const isBotActive = strategies.some((s) => s.running);
 
   return (
     <GlassCard className="col-span-12 lg:col-span-5 h-[350px] flex flex-col">
-      <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Bot Control</h3>
+      <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Active Trades</h3>
       <div className="flex-grow overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <span className="text-gray-600 dark:text-gray-300">Status</span>
@@ -129,55 +114,35 @@ const BotControl = ({ token }) => {
             <span>{isBotActive ? 'Active' : 'Stopped'}</span>
           </div>
         </div>
-        <div className="mb-4">
-          <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Running Strategies</h4>
-          {strategies.length ? (
-            <ul className="space-y-2">
+        <div className="max-h-64 overflow-y-auto">
+          <table className="w-full text-left text-sm text-gray-700 dark:text-gray-100">
+            <thead className="border-b border-gray-400/20 dark:border-white/20">
+              <tr>
+                <th className="p-2">Strategy</th>
+                <th className="p-2 text-right">Profit</th>
+                <th className="p-2">Status</th>
+                <th className="p-2 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
               {strategies.map((s) => (
-                <li key={s.id} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-700 dark:text-gray-200">{s.name}</span>
-                  <button
-                    onClick={() => stopStrategy(s.id)}
-                    className="px-2 py-1 rounded bg-red-500/80 text-white"
-                  >
-                    Stop
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-500 text-sm">No strategies running</p>
-          )}
-        </div>
-        <div>
-          <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Trade Logs</h4>
-          <div className="max-h-40 overflow-y-auto">
-            <table className="w-full text-left text-xs text-gray-700 dark:text-gray-100">
-              <thead className="border-b border-gray-400/20 dark:border-white/20">
-                <tr>
-                  <th className="p-1">Type</th>
-                  <th className="p-1">Pair</th>
-                  <th className="p-1">Qty</th>
+                <tr key={s.id} className="border-b border-gray-400/10 dark:border-white/10">
+                  <td className="p-2">{s.name}</td>
+                  <td className={`p-2 text-right font-semibold ${s.profit >= 0 ? 'text-green-500 dark:text-green-400' : 'text-red-400'}`}>${s.profit.toFixed(2)}</td>
+                  <td className="p-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${s.running ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-300'}`}>{s.running ? 'Running' : 'Stopped'}</span>
+                  </td>
+                  <td className="p-2 text-right">
+                    {s.running && (
+                      <button onClick={() => stopStrategy(s.id)} className="px-2 py-1 rounded bg-red-500/80 text-white text-xs">
+                        Stop
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {tradeLogs.map((log, i) => {
-                  const t = parseTradeLog(log);
-                  return (
-                    <tr key={i} className="border-b border-gray-400/10 dark:border-white/10">
-                      <td
-                        className={`p-1 font-bold ${t.type === 'BUY' ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}
-                      >
-                        {t.type || log}
-                      </td>
-                      <td className="p-1">{t.pair}</td>
-                      <td className="p-1">{t.qty}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </GlassCard>

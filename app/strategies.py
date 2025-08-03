@@ -142,6 +142,8 @@ OPEN_POSITION: dict[tuple[int, str], Position | None] = {}
 
 # history of completed trades for profit reporting
 TRADE_HISTORY: dict[tuple[int, str], list[dict[str, float]]] = {}
+# track cumulative profit while a strategy is running; reset when stopped
+STRATEGY_PROFITS: dict[tuple[int, str], float] = {}
 # aggregated logs of buy/sell events for display on strategy page
 GLOBAL_TRADE_LOGS: dict[int, list[str]] = {}
 
@@ -778,6 +780,7 @@ async def _run_strategy_loop(
                     trade_logs.pop(0)
 
                 profit = (exit_price - position.price) * position.quantity - position.commission - exit_commission
+                STRATEGY_PROFITS[key] = STRATEGY_PROFITS.get(key, 0.0) + profit
                 log_detail(strategy_id, f"Exiting trade at {exit_price:.5f}. Profit: {profit:.4f}")
 
         except asyncio.CancelledError:
@@ -835,6 +838,7 @@ async def start_strategy(
     }
     OPEN_POSITION.setdefault(key, None)
     TRADE_HISTORY.setdefault(key, [])
+    STRATEGY_PROFITS[key] = 0.0
     token = current_user_ctx.set(current_user["id"])
     log_detail(strategy_id, "Strategy started")
     current_user_ctx.reset(token)
@@ -859,6 +863,7 @@ async def stop_strategy(strategy_id: str, current_user: dict = Depends(auth.get_
     if run_id:
         db.stop_user_strategy_run(run_id)
     OPEN_POSITION.pop(key, None)
+    STRATEGY_PROFITS.pop(key, None)
     token = current_user_ctx.set(current_user["id"])
     log_detail(strategy_id, "Strategy stopped")
     current_user_ctx.reset(token)
@@ -878,5 +883,6 @@ def list_strategies(current_user: dict = Depends(auth.get_current_user)):
             "id": sid,
             "name": name,
             "running": (current_user["id"], sid) in RUNNING_TASKS or sid in active_runs,
+            "profit": STRATEGY_PROFITS.get((current_user["id"], sid), 0.0),
         })
     return {"strategies": results}
